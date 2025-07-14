@@ -4,4 +4,5 @@
     <string name="title_activity_main">SmartStudy Village</string>
     <string name="package_name">com.pmdstudy.app</string>
     <string name="custom_url_scheme">com.pmdstudy.app</string>
+    <string name="server_client_id" translatable="false">${FIREBASE_WEB_CLIENT_ID}</string>
 </resources>

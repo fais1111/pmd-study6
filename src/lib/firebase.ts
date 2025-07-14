@@ -1,9 +1,12 @@
+
 // Import the functions you need from the SDKs you need
 import { initializeApp, getApps, getApp } from "firebase/app";
-import { getAuth, GoogleAuthProvider, signInWithPopup } from "firebase/auth";
+import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithCredential, UserCredential } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 import "dotenv/config";
+import { Capacitor } from '@capacitor/core';
+import { FirebaseAuthentication } from 'capacitor-firebase-auth';
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -20,10 +23,21 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 const storage = getStorage(app);
 
-const signInWithGoogle = async () => {
-    // Web platform: Use Firebase's popup
-    const provider = new GoogleAuthProvider();
-    return signInWithPopup(auth, provider);
+
+const signInWithGoogle = async (): Promise<UserCredential> => {
+    // Check if running on a native platform
+    if (Capacitor.isNativePlatform()) {
+        const result = await FirebaseAuthentication.signInWithGoogle();
+        return result.credential;
+
+    } else {
+        // Web platform: Use Firebase's popup
+        const provider = new GoogleAuthProvider();
+        provider.setCustomParameters({
+            prompt: 'select_account'
+        });
+        return signInWithPopup(auth, provider);
+    }
 };
 
 export { app, auth, db, storage, signInWithGoogle };

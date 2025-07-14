@@ -3,7 +3,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { User } from "firebase/auth";
+import { User, UserCredential } from "firebase/auth";
 import { auth, signInWithGoogle } from "@/lib/firebase";
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
@@ -11,7 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Logo } from '@/components/icons';
 import { useToast } from "@/hooks/use-toast";
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { grades } from '@/config/grades';
@@ -90,7 +90,7 @@ export default function LoginPage() {
   const handleGoogleLogin = async () => {
     setIsGoogleLoading(true);
     try {
-        const result = await signInWithGoogle();
+        const result: UserCredential = await signInWithGoogle();
         const user = result.user;
         
         const profile = await getUserProfile(user.uid);
@@ -103,15 +103,14 @@ export default function LoginPage() {
         }
 
     } catch (error: any) {
-        // Don't show an error toast if the user simply closes the web popup.
-       if (error.code === 'auth/popup-closed-by-user' || error.message.includes('cancelled') || error.message.includes('user closed the prompt')) {
+       if (error.code === 'auth/popup-closed-by-user' || error.message.includes('cancelled') || error.message.includes('user closed the prompt') || error.message.includes('SIGN_IN_CANCELLED') || error.message.includes('No user chosen') || error.message.includes('aborted')) {
            setIsGoogleLoading(false);
            return;
        }
        console.error("Google sign-in error", error);
        toast({
            title: "Login Failed",
-           description: "There was an error signing in with Google. Please try again.",
+           description: error.message || "There was an error signing in with Google. Please try again.",
            variant: "destructive",
        })
     } finally {

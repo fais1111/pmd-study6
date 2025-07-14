@@ -1,11 +1,18 @@
+
 // capacitor.config.ts
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'com.pmdstudy.app',
   appName: 'SmartStudy Village',
-  webDir: 'out', // Point this to the Next.js export directory
+  webDir: 'out',
   bundledWebRuntime: false,
+  plugins: {
+    FirebaseAuthentication: {
+      skipNativeAuth: false,
+      providers: ['google.com'],
+    },
+  },
 };
 
 export default config;

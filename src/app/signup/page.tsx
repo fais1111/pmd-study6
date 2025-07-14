@@ -1,8 +1,9 @@
+
 'use client';
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { createUserWithEmailAndPassword } from "firebase/auth";
+import { createUserWithEmailAndPassword, UserCredential } from "firebase/auth";
 import { auth, signInWithGoogle } from "@/lib/firebase";
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
@@ -79,7 +80,7 @@ export default function SignupPage() {
         
         setIsLoading(true);
         try {
-            const result = await signInWithGoogle();
+            const result: UserCredential = await signInWithGoogle();
             const user = result.user;
             await createUserProfile(user.uid, {
                 displayName: user.displayName!,
@@ -89,15 +90,14 @@ export default function SignupPage() {
             });
             router.push('/dashboard');
         } catch (error: any) {
-             // Don't show an error toast if the user simply closes the web popup or native prompt.
-            if (error.code === 'auth/popup-closed-by-user' || error.message.includes('cancelled') || error.message.includes('user closed the prompt')) {
+            if (error.code === 'auth/popup-closed-by-user' || error.message.includes('cancelled') || error.message.includes('user closed the prompt') || error.message.includes('SIGN_IN_CANCELLED') || error.message.includes('No user chosen') || error.message.includes('aborted')) {
                 setIsLoading(false);
                 return;
             }
              console.error("Google sign-up error", error);
             toast({
                 title: "Sign-up Failed",
-                description: "There was an error signing up with Google. Please try again.",
+                description: error.message || "There was an error signing up with Google. Please try again.",
                 variant: "destructive",
             })
         } finally {

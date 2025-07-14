@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "capacitor-firebase-auth": "^7.0.0",
     "@capacitor/android": "^7.4.2",
     "@capacitor/core": "^7.4.2",
     "@genkit-ai/googleai": "^1.13.0",
