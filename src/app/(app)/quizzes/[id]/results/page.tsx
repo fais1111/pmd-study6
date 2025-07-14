@@ -1,6 +1,4 @@
 
-'use client';
-
 import { QuizResults } from './QuizResults';
 
 export async function generateStaticParams() {

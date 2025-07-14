@@ -1,6 +1,4 @@
 
-'use client';
-
 import { TakeQuizPlayer } from './TakeQuizPlayer';
 
 export async function generateStaticParams() {
