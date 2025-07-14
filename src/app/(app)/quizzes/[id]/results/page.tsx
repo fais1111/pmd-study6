@@ -1,11 +1,7 @@
 
-import { QuizResults } from './QuizResults';
+'use client';
 
-export async function generateStaticParams() {
-    // Return an empty array to indicate that all results pages are dynamically generated on the client.
-    // This satisfies the requirement for static export with dynamic routes.
-    return [];
-}
+import { QuizResults } from './QuizResults';
 
 export default function QuizResultsPage() {
     return <QuizResults />;
