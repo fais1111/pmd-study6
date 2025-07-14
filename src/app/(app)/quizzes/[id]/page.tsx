@@ -1,10 +1,13 @@
 
 import { TakeQuizPlayer } from './TakeQuizPlayer';
 
-export default function TakeQuizPage() {
-    return <TakeQuizPlayer />;
+export async function generateStaticParams() {
+    // Return an empty array.
+    // This tells Next.js not to pre-render any specific quiz pages at build time.
+    // The pages will be rendered on the client-side.
+    return [];
 }
 
-export async function generateStaticParams() {
-    return [];
+export default function TakeQuizPage() {
+    return <TakeQuizPlayer />;
 }
