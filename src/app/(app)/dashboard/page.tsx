@@ -101,7 +101,7 @@ export default function DashboardPage() {
                 icon: <Target className="h-6 w-6 text-primary" />,
                 title: latestQuiz.title,
                 description: `Subject: ${latestQuiz.subject}`,
-                link: `/quizzes/${latestQuiz.id}`,
+                link: `/quizzes/play?id=${latestQuiz.id}`,
                 linkText: 'Take Quiz'
             });
         }

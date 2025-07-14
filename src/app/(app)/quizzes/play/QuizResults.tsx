@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
@@ -90,10 +90,8 @@ function Leaderboard({ quizId }: { quizId: string }) {
 }
 
 
-export function QuizResults() {
-    const params = useParams();
+export function QuizResults({ quizId }: { quizId: string }) {
     const router = useRouter();
-    const quizId = params.id as string;
     const { user } = useAuth();
 
     const [quiz, setQuiz] = useState<Quiz | null>(null);

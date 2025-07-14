@@ -17,14 +17,14 @@ const QuizCard = memo(function QuizCard({ quiz, attempt }: { quiz: Quiz, attempt
     let cardDescription = `${questionsCount} question${questionsCount > 1 ? 's' : ''} • ${quiz.subject}`;
     
     let actionText = "Start Quiz";
-    let actionLink = `/quizzes/${quiz.id}`;
+    let actionLink = `/quizzes/play?id=${quiz.id}`;
     let showProgress = false;
     let progressValue = 0;
     
     if (attempt) {
         if (attempt.completed) {
             actionText = "View Results";
-            actionLink = `/quizzes/${quiz.id}/results`;
+            actionLink = `/quizzes/play?id=${quiz.id}&view=results`;
             cardDescription = `Completed | Score: ${attempt.score}%`;
         } else {
             const completedQuestions = Object.keys(attempt.answers).length;

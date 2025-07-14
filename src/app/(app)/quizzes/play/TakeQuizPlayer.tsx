@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter, useParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
@@ -15,11 +15,8 @@ import { Loader2, ChevronLeft, ChevronRight, CheckCircle } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Timestamp } from 'firebase/firestore';
 
-export function TakeQuizPlayer() {
+export function TakeQuizPlayer({ quizId }: { quizId: string }) {
     const router = useRouter();
-    const params = useParams();
-    const quizId = params.id as string;
-
     const { user } = useAuth();
     const { toast } = useToast();
 
@@ -134,7 +131,7 @@ export function TakeQuizPlayer() {
             }, attemptId);
 
             toast({ title: "Quiz Submitted!", description: "Well done! Redirecting to your results..." });
-            router.push(`/quizzes/${quiz.id}/results`);
+            router.push(`/quizzes/play?id=${quiz.id}&view=results`);
         } catch (error) {
             console.error("Failed to submit quiz", error);
             toast({ title: "Error", description: "Could not submit your quiz.", variant: "destructive" });
