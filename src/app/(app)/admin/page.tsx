@@ -415,13 +415,12 @@ function PostForm({ post, onFinished }: { post?: Post, onFinished: () => void })
     async function onSubmit(values: PostFormValues) {
         setIsSubmitting(true);
         try {
-            const postData: Partial<PostUpload & { id: string }> = { ...values };
-            
             if (isEditMode && values.id) {
-                await updatePost(values.id, postData);
+                await updatePost(values.id, values);
                 toast({ title: "Success!", description: "The post has been updated." });
             } else {
-                await createPost(postData as PostUpload);
+                const { id, ...createValues } = values;
+                await createPost(createValues as PostUpload);
                 toast({ title: "Success!", description: "The post has been created." });
             }
             form.reset();
@@ -997,3 +996,5 @@ export default function AdminPage() {
     </div>
   );
 }
+
+    
