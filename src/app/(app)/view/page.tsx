@@ -53,7 +53,7 @@ function MediaViewer() {
     }
 
     return (
-        <div className="flex flex-col max-w-4xl mx-auto">
+        <div className="flex flex-col max-w-4xl mx-auto h-full">
              <div className="flex items-center gap-4 mb-4">
                 <Button variant="outline" size="icon" onClick={() => router.back()}>
                     <ArrowLeft className="h-4 w-4" />
@@ -61,7 +61,7 @@ function MediaViewer() {
                 <h1 className="text-xl font-bold font-headline truncate">{title || 'Media Viewer'}</h1>
             </div>
             {embedUrl ? (
-                <div className={cn("relative w-full", isVideo ? "aspect-video" : "flex-grow h-[80vh]")}>
+                <div className={cn("relative w-full", isVideo ? "aspect-video" : "flex-grow")}>
                     <iframe
                         src={embedUrl}
                         className="absolute top-0 left-0 w-full h-full border-0 rounded-lg shadow-lg"
