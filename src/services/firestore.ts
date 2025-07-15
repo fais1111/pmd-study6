@@ -139,7 +139,10 @@ export async function uploadStudyMaterial(material: Omit<MaterialUpload & {id?: 
         const storageRef = ref(storage, filePath);
         const snapshot = await uploadBytes(storageRef, file);
         fileUrl = await getDownloadURL(snapshot.ref);
+    } else if (type === 'video') {
+        filePath = null; // Ensure filePath is null for videos
     }
+
 
     if (!fileUrl) {
         throw new Error("A file or a valid URL is required.");
@@ -149,7 +152,7 @@ export async function uploadStudyMaterial(material: Omit<MaterialUpload & {id?: 
         ...materialData,
         type,
         fileUrl: fileUrl,
-        filePath: filePath,
+        filePath: filePath, // This can be null
         createdAt: new Date(),
     });
 
@@ -238,14 +241,25 @@ export async function createQuiz(quizData: Omit<Quiz, 'id' | 'createdAt'>): Prom
 }
 
 export async function updateQuiz(id: string, quizData: Partial<Omit<Quiz, 'id' | 'createdAt'>>) {
-    // When a quiz is updated, we just update the quiz document itself.
-    // We will not delete old attempts, as they will be orphaned and not affect new attempts.
-    // This avoids a complex and potentially slow collectionGroup query.
+    const batch = writeBatch(db);
+
+    // 1. Delete all existing attempts for this quiz
+    // This requires the composite index to be created in Firestore console
+    const attemptsQuery = query(collectionGroup(db, 'attempts'), where('quizId', '==', id));
+    const attemptsSnapshot = await getDocs(attemptsQuery);
+    attemptsSnapshot.forEach(doc => {
+        batch.delete(doc.ref);
+    });
+
+    // 2. Update the quiz document itself
     const quizDocRef = doc(db, 'quizzes', id);
-    await updateDoc(quizDocRef, {
+    batch.update(quizDocRef, {
         ...quizData,
         updatedAt: Timestamp.now(),
     });
+
+    // 3. Commit the batch
+    await batch.commit();
 }
 
 
