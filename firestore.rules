@@ -3,43 +3,50 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    function isAdmin() {
-      return request.auth.token.email == "techworldinfo98@gmail.com";
-    }
-    
     function isOwner(userId) {
       return request.auth.uid == userId;
     }
 
+    function isAdmin() {
+      return request.auth.token.email == 'techworldinfo98@gmail.com';
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Rules for the 'users' collection
     match /users/{userId} {
-      allow read, update, delete: if isOwner(userId);
-      allow create: if request.auth.uid != null;
-
-      match /attempts/{attemptId} {
-        allow read, write: if isOwner(userId);
-      }
-    }
-
-    match /study_materials/{materialId} {
-      allow read: if request.auth.uid != null;
-      allow write: if isAdmin();
-    }
-
-    match /quizzes/{quizId} {
-      allow read: if request.auth.uid != null;
-      allow write: if isAdmin();
+      // Any authenticated user can get any user's public profile data for leaderboards/etc.
+      allow get: if isSignedIn();
+      // Users can create and update their own profile.
+      allow create, update: if isOwner(userId);
     }
     
-    match /configs/{configId} {
-      allow read: if request.auth.uid != null;
-      allow write: if isAdmin();
+    // Rules for top-level collections like 'study_materials', 'quizzes', 'configs'
+    match /{collection}/{docId} {
+        // Admins can do anything.
+        allow read, write: if isSignedIn() && isAdmin();
+        
+        // Any authenticated user can read these documents.
+        allow get, list: if isSignedIn();
     }
 
-    // Rules for the 'attempts' collection group query
+    // Rules for the 'attempts' sub-collection within users
+    match /users/{userId}/attempts/{attemptId} {
+        // Admins can do anything.
+        allow read, write: if isSignedIn() && isAdmin();
+        
+        // Users can read, create, and update their own attempts.
+        allow get, list, create, update: if isSignedIn() && isOwner(userId);
+    }
+
+    // Rules for Collection Group queries
     match /{path=**}/attempts/{attemptId} {
-      // Admins can read/delete any attempt document in any user's subcollection.
-      // This is required for the batch delete operation when a quiz is updated.
-      allow read, delete: if isAdmin();
+        // Admins can list and delete any attempt across all users (for updating quizzes).
+        allow list, delete: if isSignedIn() && isAdmin();
+        // Any signed-in user can list attempts for the leaderboard.
+        allow list: if isSignedIn();
     }
   }
 }
