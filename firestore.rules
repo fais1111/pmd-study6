@@ -1,36 +1,52 @@
+
 rules_version = '2';
+
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // Helper function to check for admin role
+    function isAdmin() {
+      return request.auth.token.email == "techworldinfo98@gmail.com";
+    }
+
+    // Users can create their own profile, and update their own profile.
+    // Any authenticated user can read public profile information for leaderboards.
     match /users/{userId} {
-      allow read, write: if request.auth.uid == userId;
-
-      match /attempts/{attemptId} {
-        allow read, write: if request.auth.uid == userId;
-        allow delete: if request.auth.uid == userId || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.email == "techworldinfo98@gmail.com";
-      }
+      allow read: if request.auth != null;
+      allow create: if request.auth.uid == userId;
+      allow update: if request.auth.uid == userId;
     }
 
-    // This rule allows any authenticated user to query the 'attempts' collection group.
-    // This is required for the leaderboard feature to read attempts from all users.
-    // The function itself only retrieves non-sensitive data for ranking.
-    match /{path=**}/attempts/{attemptId} {
+    // Only admins can create, update, or delete study materials.
+    // Any authenticated user can view them.
+    match /study_materials/{materialId} {
       allow read: if request.auth != null;
-    }
-
-    match /study_materials/{document=**} {
-      allow read: if request.auth != null;
-      allow write: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.email == "techworldinfo98@gmail.com";
-    }
-
-    match /quizzes/{document=**} {
-      allow read: if request.auth != null;
-      allow write: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.email == "techworldinfo98@gmail.com";
+      allow create, update, delete: if isAdmin();
     }
     
-    match /configs/{document=**} {
+    // Only admins can create, update, or delete quizzes.
+    // Any authenticated user can view them.
+    match /quizzes/{quizId} {
       allow read: if request.auth != null;
-      allow write: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.email == "techworldinfo98@gmail.com";
+      allow create, update, delete: if isAdmin();
+    }
+
+    // Users can create and update their own quiz attempts.
+    // The collectionGroup read rule below allows the leaderboard to function.
+    match /users/{userId}/attempts/{attemptId} {
+      allow read, create, update, delete: if request.auth.uid == userId;
+    }
+    
+    // This allows the leaderboard query to read all attempts across all users.
+    match /{path=**}/attempts/{attemptId} {
+        allow read: if request.auth != null;
+    }
+
+    // Only admins can update general configuration.
+    // Any authenticated user can read it (e.g., for career tip).
+    match /configs/{configId} {
+      allow read: if request.auth != null;
+      allow create, update, delete: if isAdmin();
     }
   }
 }
