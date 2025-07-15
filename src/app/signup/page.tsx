@@ -17,7 +17,6 @@ import { grades } from '@/config/grades';
 import { createUserProfile } from '@/services/firestore';
 import { Loader2 } from 'lucide-react';
 
-
 function GoogleIcon(props: React.SVGProps<SVGSVGElement>) {
     return (
       <svg role="img" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" {...props}>

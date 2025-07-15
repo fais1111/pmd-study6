@@ -1,4 +1,3 @@
-
 // capacitor.config.ts
 import type { CapacitorConfig } from '@capacitor/cli';
 
@@ -8,9 +7,10 @@ const config: CapacitorConfig = {
   webDir: 'out',
   bundledWebRuntime: false,
   plugins: {
-    FirebaseAuthentication: {
-      skipNativeAuth: false,
-      providers: ['google.com'],
+    GoogleAuth: {
+      scopes: ['profile', 'email'],
+      serverClientId: process.env.NEXT_PUBLIC_FIREBASE_WEB_CLIENT_ID,
+      forceCodeForRefreshToken: true,
     },
   },
 };

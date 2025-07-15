@@ -1,12 +1,11 @@
-
 // Import the functions you need from the SDKs you need
 import { initializeApp, getApps, getApp } from "firebase/app";
-import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithCredential, UserCredential } from "firebase/auth";
+import { getAuth, GoogleAuthProvider, signInWithPopup, UserCredential, signInWithCredential } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 import "dotenv/config";
 import { Capacitor } from '@capacitor/core';
-import { FirebaseAuthentication } from 'capacitor-firebase-auth';
+import { GoogleAuth } from '@codetrix-studio/capacitor-google-auth';
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -19,16 +18,20 @@ const firebaseConfig = {
 
 // Initialize Firebase
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+if (Capacitor.isNativePlatform()) {
+    GoogleAuth.initialize();
+}
 const auth = getAuth(app);
 const db = getFirestore(app);
 const storage = getStorage(app);
 
-
 const signInWithGoogle = async (): Promise<UserCredential> => {
     // Check if running on a native platform
     if (Capacitor.isNativePlatform()) {
-        const result = await FirebaseAuthentication.signInWithGoogle();
-        return result.credential;
+        const googleUser = await GoogleAuth.signIn();
+        const idToken = googleUser.authentication.idToken;
+        const credential = GoogleAuthProvider.credential(idToken);
+        return signInWithCredential(auth, credential);
 
     } else {
         // Web platform: Use Firebase's popup

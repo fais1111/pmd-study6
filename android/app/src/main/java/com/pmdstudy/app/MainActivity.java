@@ -7,13 +7,13 @@ import com.getcapacitor.Plugin;
 
 import java.util.ArrayList;
 
-import cap.strap.firebase.auth.FirebaseAuthentication;
+import com.codetrixstudio.capacitor.GoogleAuth.GoogleAuth;
 
 public class MainActivity extends BridgeActivity {
   @Override
   public void onCreate(Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
 
-    registerPlugin(FirebaseAuthentication.class);
+    registerPlugin(GoogleAuth.class);
   }
 }
