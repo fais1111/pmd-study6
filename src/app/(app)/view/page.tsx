@@ -5,6 +5,7 @@ import { Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Loader2, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 
 function getYoutubeEmbedUrl(url: string) {
     let videoId;
@@ -43,14 +44,16 @@ function MediaViewer() {
     }
 
     let embedUrl: string | null = null;
+    let isVideo = false;
     if (type === 'video') {
         embedUrl = getYoutubeEmbedUrl(url);
+        isVideo = true;
     } else if (type === 'notes' || type === 'past-paper') {
         embedUrl = getPdfEmbedUrl(url);
     }
 
     return (
-        <div className="flex flex-col h-[calc(100vh-theme(spacing.24))]">
+        <div className="flex flex-col h-full">
              <div className="flex items-center gap-4 mb-4">
                 <Button variant="outline" size="icon" onClick={() => router.back()}>
                     <ArrowLeft className="h-4 w-4" />
@@ -58,13 +61,15 @@ function MediaViewer() {
                 <h1 className="text-xl font-bold font-headline truncate">{title || 'Media Viewer'}</h1>
             </div>
             {embedUrl ? (
-                <iframe
-                    src={embedUrl}
-                    className="w-full h-full border-0 rounded-lg shadow-lg"
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                    allowFullScreen
-                    title={title || 'Embedded Media'}
-                ></iframe>
+                <div className={cn("relative w-full", isVideo ? "aspect-video" : "flex-grow")}>
+                    <iframe
+                        src={embedUrl}
+                        className="absolute top-0 left-0 w-full h-full border-0 rounded-lg shadow-lg"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                        allowFullScreen
+                        title={title || 'Embedded Media'}
+                    ></iframe>
+                </div>
             ) : (
                 <div className="text-center py-10 text-destructive">Could not load the media. The URL might be invalid.</div>
             )}
