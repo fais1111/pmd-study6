@@ -37,17 +37,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const [accessSettings, setAccessSettings] = useState<AccessControlSettings>({ isRestricted: false });
 
     const checkAccess = useCallback((profile: UserProfile | null, settings: AccessControlSettings) => {
-        if (!profile) return false;
-        if (profile.email === ADMIN_EMAIL) return true; // Admin always has full access
-        if (!settings.isRestricted) return true; // Not restricted globally, everyone has access
+        // Admin always has full access
+        if (profile?.email === ADMIN_EMAIL) return true;
+        // If global restrictions are off, everyone has full access
+        if (!settings.isRestricted) return true;
 
-        // Check for individual access expiry
+        // At this point, restrictions are ON.
+        // If there's no profile, access is restricted.
+        if (!profile) return false;
+
+        // Check for individual access grant
         if (profile.accessExpiresAt) {
             const now = Timestamp.now();
+            // User has full access if their grant has not expired
             return profile.accessExpiresAt > now;
         }
 
-        return false; // Restricted and no valid individual access
+        // If restrictions are on and user has no specific grant, they have limited access.
+        return false;
     }, []);
 
     const refreshUserProfile = useCallback(async () => {
