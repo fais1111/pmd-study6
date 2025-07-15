@@ -132,7 +132,7 @@ export async function updateUserProfile(uid: string, data: Partial<Pick<UserProf
 export async function uploadStudyMaterial(material: Omit<MaterialUpload & {id?: string}, 'id'>) {
     const { file, type, ...materialData } = material;
     let fileUrl = material.fileUrl || '';
-    let filePath: string | undefined = undefined;
+    let filePath: string | null = null;
 
     if (type !== 'video' && file) {
         filePath = `study_materials/${material.grade}/${material.subject}/${Date.now()}_${file.name}`;
@@ -149,7 +149,7 @@ export async function uploadStudyMaterial(material: Omit<MaterialUpload & {id?: 
         ...materialData,
         type,
         fileUrl: fileUrl,
-        filePath: filePath, // Save file path for deletion
+        filePath: filePath,
         createdAt: new Date(),
     });
 
@@ -437,5 +437,3 @@ export async function updateCareerTip(tip: CareerTip) {
     const docRef = doc(db, 'configs', 'careerTip');
     await setDoc(docRef, tip);
 }
-
-    
