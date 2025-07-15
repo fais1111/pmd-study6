@@ -3,18 +3,22 @@
   {
     "origin": [
       "https://*.cloudworkstations.dev",
-      "http://localhost:9002"
+      "http://localhost:9002",
+      "https://firebasestorage.googleapis.com"
     ],
     "method": [
       "GET",
       "POST",
       "PUT",
       "DELETE",
-      "OPTIONS"
+      "OPTIONS",
+      "HEAD"
     ],
     "responseHeader": [
       "Content-Type",
-      "Authorization"
+      "Authorization",
+      "X-Goog-Resumable",
+      "Content-Length"
     ],
     "maxAgeSeconds": 3600
   }
