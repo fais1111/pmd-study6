@@ -11,22 +11,18 @@ import { useEffect, useState, useMemo } from "react"
 import { useAuth } from "@/context/AuthContext"
 import { getStudyMaterials, getCareerTip, Material, CareerTip, getQuizzes, Quiz, getUserQuizAttemptsForQuiz, QuizAttempt, getPosts, Post } from "@/services/firestore"
 
-function LatestPostCard({ post }: { post: Post }) {
+function PostCard({ post }: { post: Post }) {
     return (
-        <Card className="shadow-sm lg:col-span-3 flex flex-col md:flex-row overflow-hidden group">
+        <Card className="shadow-sm flex flex-col md:flex-row overflow-hidden group w-full">
             <div className="relative w-full md:w-1/3 h-48 md:h-auto flex-shrink-0">
                 <Image src={post.imageUrl} alt={post.title} fill sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw" className="object-cover transition-transform duration-300 group-hover:scale-105" data-ai-hint="announcement abstract" />
             </div>
             <div className="flex flex-col flex-grow">
                 <CardHeader>
-                    <div className="flex items-center gap-2">
-                        <Megaphone className="h-6 w-6 text-primary" />
-                        <CardTitle className="font-headline text-xl">Latest News & Updates</CardTitle>
-                    </div>
+                     <h3 className="font-bold text-lg font-headline">{post.title}</h3>
                 </CardHeader>
                 <CardContent className="flex-grow">
-                    <h3 className="font-bold text-lg">{post.title}</h3>
-                    <p className="text-muted-foreground mt-1 line-clamp-2">{post.description}</p>
+                    <p className="text-muted-foreground mt-1 line-clamp-3">{post.description}</p>
                 </CardContent>
                 <CardFooter>
                     {post.link && (
@@ -49,7 +45,7 @@ export default function DashboardPage() {
         continueStudying: Material | null;
         latestQuiz: Quiz | null;
         careerTip: CareerTip;
-        latestPost: Post | null;
+        posts: Post[];
     } | null>(null);
     const [loading, setLoading] = useState(true);
 
@@ -71,7 +67,7 @@ export default function DashboardPage() {
                     continueStudying: null,
                     latestQuiz: null,
                     careerTip: tip,
-                    latestPost: null,
+                    posts: [],
                 });
                 setLoading(false);
                 return;
@@ -79,12 +75,11 @@ export default function DashboardPage() {
 
             const materialsPromise = getStudyMaterials(grade, true, 1);
             const quizzesPromise = getQuizzes(grade, 5); // Fetch more quizzes to find an uncompleted one
-            const postsPromise = getPosts(grade, 1);
+            const postsPromise = getPosts(grade);
             
             const [materials, quizzes, careerTip, posts] = await Promise.all([materialsPromise, quizzesPromise, careerTipPromise, postsPromise]);
             
             const continueStudying = materials.length > 0 ? materials[0] : null;
-            const latestPost = posts.length > 0 ? posts[0] : null;
 
             let latestQuiz: Quiz | null = null;
             if (quizzes.length > 0) {
@@ -103,7 +98,7 @@ export default function DashboardPage() {
                 continueStudying,
                 latestQuiz,
                 careerTip,
-                latestPost,
+                posts,
             });
 
             setLoading(false);
@@ -114,10 +109,10 @@ export default function DashboardPage() {
         }
     }, [user, userProfile?.grade, authLoading]);
 
-    const { todaysPlan, continueStudying, careerTip, latestPost } = useMemo(() => {
-        if (!dashboardData) return { todaysPlan: [], continueStudying: null, careerTip: undefined, latestPost: null };
+    const { todaysPlan, continueStudying, careerTip, posts } = useMemo(() => {
+        if (!dashboardData) return { todaysPlan: [], continueStudying: null, careerTip: undefined, posts: [] };
 
-        const { continueStudying, latestQuiz, careerTip, latestPost } = dashboardData;
+        const { continueStudying, latestQuiz, careerTip, posts } = dashboardData;
         
         let plan: any[] = [];
         
@@ -159,7 +154,7 @@ export default function DashboardPage() {
             todaysPlan: plan,
             continueStudying,
             careerTip,
-            latestPost,
+            posts,
         };
 
     }, [dashboardData]);
@@ -198,10 +193,20 @@ export default function DashboardPage() {
         <p className="text-muted-foreground">Here's your personalized learning dashboard for today.</p>
       </div>
 
+       {posts && posts.length > 0 && (
+            <div className="space-y-4">
+                <div className="flex items-center gap-2">
+                    <Megaphone className="h-6 w-6 text-primary" />
+                    <h2 className="text-xl font-bold font-headline">News & Updates</h2>
+                </div>
+                <div className="grid gap-6">
+                    {posts.map(post => <PostCard key={post.id} post={post} />)}
+                </div>
+            </div>
+       )}
+
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         
-        {latestPost && <LatestPostCard post={latestPost} />}
-
         <Card className="lg:col-span-2 shadow-sm">
           <CardHeader>
             <div className="flex items-center gap-2">
