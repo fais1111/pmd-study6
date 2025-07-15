@@ -17,7 +17,7 @@ import { Timestamp } from 'firebase/firestore';
 
 export function TakeQuizPlayer({ quizId }: { quizId: string }) {
     const router = useRouter();
-    const { user } = useAuth();
+    const { user, userProfile } = useAuth();
     const { toast } = useToast();
 
     const [quiz, setQuiz] = useState<Quiz | null>(null);
@@ -28,6 +28,7 @@ export function TakeQuizPlayer({ quizId }: { quizId: string }) {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [startTime, setStartTime] = useState<Timestamp | null>(null);
 
     useEffect(() => {
         if (!quizId || !user) return;
@@ -50,16 +51,19 @@ export function TakeQuizPlayer({ quizId }: { quizId: string }) {
                     setAttempt(latestAttempt);
                     setAttemptId(latestAttempt.id);
                     setAnswers(latestAttempt.answers);
+                    setStartTime(latestAttempt.startedAt || Timestamp.now());
                     const lastAnswered = Math.max(-1, ...Object.keys(latestAttempt.answers).map(Number));
                     const nextQuestion = Math.min(lastAnswered + 1, fetchedQuiz.questions.length - 1);
                     setCurrentQuestionIndex(nextQuestion);
                 } else {
                     // Start a new attempt
+                     const newStartTime = Timestamp.now();
+                     setStartTime(newStartTime);
                     const newAttemptId = await saveQuizAttempt(user.uid, quizId, {
                         answers: {},
                         score: 0,
                         completed: false,
-                        startedAt: Timestamp.now(),
+                        startedAt: newStartTime,
                     });
                     setAttemptId(newAttemptId);
                 }
@@ -127,6 +131,7 @@ export function TakeQuizPlayer({ quizId }: { quizId: string }) {
                 answers,
                 score,
                 completed: true,
+                startedAt: startTime || Timestamp.now(), // Ensure startTime is passed
                 completedAt: Timestamp.now(),
             }, attemptId);
 

@@ -3,7 +3,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { createUserWithEmailAndPassword, UserCredential } from "firebase/auth";
+import { createUserWithEmailAndPassword, updateProfile, UserCredential } from "firebase/auth";
 import { auth, signInWithGoogle } from "@/lib/firebase";
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
@@ -57,6 +57,10 @@ export default function SignupPage() {
         try {
             const userCredential = await createUserWithEmailAndPassword(auth, email, password);
             const user = userCredential.user;
+
+            // Update the user's profile with the display name
+            await updateProfile(user, { displayName: username });
+            
             await createUserProfile(user.uid, {
                 displayName: username,
                 email: user.email!,

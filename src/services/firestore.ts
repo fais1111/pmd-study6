@@ -224,20 +224,16 @@ export async function createQuiz(quizData: Omit<Quiz, 'id' | 'createdAt'>): Prom
 export async function updateQuiz(id: string, quizData: Partial<Omit<Quiz, 'id' | 'createdAt'>>) {
     const batch = writeBatch(db);
 
-    const usersSnapshot = await getDocs(collection(db, 'users'));
-    for (const userDoc of usersSnapshot.docs) {
-        const attemptsRef = collection(db, 'users', userDoc.id, 'attempts');
-        const attemptsQuery = query(attemptsRef, where('quizId', '==', id));
-        const attemptsSnapshot = await getDocs(attemptsQuery);
-        attemptsSnapshot.forEach(doc => {
-            batch.delete(doc.ref);
-        });
-    }
-
     const quizDocRef = doc(db, 'quizzes', id);
     batch.update(quizDocRef, {
         ...quizData,
         updatedAt: Timestamp.now(),
+    });
+
+    const attemptsQuery = query(collectionGroup(db, 'attempts'), where('quizId', '==', id));
+    const attemptsSnapshot = await getDocs(attemptsQuery);
+    attemptsSnapshot.forEach(doc => {
+        batch.delete(doc.ref);
     });
 
     await batch.commit();
@@ -308,11 +304,6 @@ export async function saveQuizAttempt(userId: string, quizId: string, data: Part
         quizId,
         updatedAt: Timestamp.now(), // Use updatedAt to track saves
     };
-
-    if (data.completed) {
-        attemptData.userDisplayName = user.displayName;
-        attemptData.userPhotoURL = user.photoURL;
-    }
     
     if (!attemptId) {
         attemptData.createdAt = Timestamp.now();
@@ -359,14 +350,26 @@ export async function getQuizLeaderboard(quizId: string): Promise<LeaderboardEnt
             }
         }
     }
+    
+    const userIds = Object.keys(userBestAttempts);
+    const userProfiles: Record<string, UserProfile> = {};
+
+    if (userIds.length > 0) {
+        const usersQuery = query(collection(db, 'users'), where('__name__', 'in', userIds));
+        const usersSnapshot = await getDocs(usersQuery);
+        usersSnapshot.forEach(doc => {
+            userProfiles[doc.id] = { id: doc.id, ...doc.data() } as UserProfile;
+        });
+    }
 
     const ranked = Object.values(userBestAttempts)
         .map(attempt => {
+            const userProfile = userProfiles[attempt.userId];
             const duration = (attempt.completedAt?.toMillis() || 0) - (attempt.startedAt?.toMillis() ?? 0);
             return {
                 userId: attempt.userId,
-                displayName: attempt.userDisplayName || 'Anonymous',
-                photoURL: attempt.userPhotoURL || 'https://placehold.co/100x100.png',
+                displayName: userProfile?.displayName || 'Anonymous',
+                photoURL: userProfile?.photoURL || 'https://placehold.co/100x100.png',
                 score: attempt.score,
                 duration: Math.round(duration / 1000), // duration in seconds
             };
