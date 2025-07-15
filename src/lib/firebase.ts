@@ -8,13 +8,16 @@ import {
     signInWithCredential,
     setPersistence,
     browserLocalPersistence,
-    Auth
+    initializeAuth,
+    indexedDBLocalPersistence
 } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 import "dotenv/config";
 import { Capacitor } from '@capacitor/core';
 import { GoogleAuth } from '@codetrix-studio/capacitor-google-auth';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import type { Auth } from 'firebase/auth';
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -28,8 +31,18 @@ const firebaseConfig = {
 // Initialize Firebase
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 
-const auth = getAuth(app);
-setPersistence(auth, browserLocalPersistence);
+let auth: Auth;
+
+if (Capacitor.isNativePlatform()) {
+    // Use initializeAuth for native platforms with AsyncStorage
+    auth = initializeAuth(app, {
+        persistence: indexedDBLocalPersistence // A more robust persistence for web contexts on native
+    });
+} else {
+    // Use getAuth for web
+    auth = getAuth(app);
+    setPersistence(auth, browserLocalPersistence);
+}
 
 
 if (Capacitor.isNativePlatform()) {
