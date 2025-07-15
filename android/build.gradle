@@ -1,7 +1,28 @@
 // Top-level build file where you can add configuration options common to all sub-projects/modules.
 buildscript {
     ext {
-        // ...
+        // SDK and tools
+        minSdkVersion = 22
+        compileSdkVersion = 35
+        targetSdkVersion = 35
+        // App dependencies
+        // TODO: update to latest versions
+        coreVersion = '1.13.1'
+        // TODO: update to latest versions
+        appCompatVersion = '1.7.0'
+        // TODO: update to latest versions
+        materialVersion = '1.12.0'
+        // TODO: update to latest versions
+        recyclerViewVersion = '1.3.2'
+        // TODO: update to latest versions
+        junitVersion = '4.13.2'
+        // TODO: update to latest versions
+        // TODO: update to latest versions
+        espressoVersion = '3.6.1'
+        // TODO: update to latest versions
+        androidxJunitVersion = '1.2.1'
+        // TODO: update to latest versions
+        androidxCoreVersion = '1.13.1'
     }
     repositories {
         google()
@@ -10,7 +31,8 @@ buildscript {
     dependencies {
         classpath 'com.android.tools.build:gradle:8.5.1'
         classpath 'com.google.gms:google-services:4.4.2'
-        // ...
+        // NOTE: Do not place your application dependencies here; they belong
+        // in the individual module build.gradle files
     }
 }
 
@@ -21,23 +43,6 @@ allprojects {
     }
 }
 
-ext {
-    minSdkVersion = 22
-    compileSdkVersion = 35
-    targetSdkVersion = 34
-    androidxActivityVersion = '1.9.1'
-    androidxAppCompatVersion = '1.7.0'
-    androidxCoordinatorLayoutVersion = '1.2.0'
-    androidxCoreVersion = '1.15.0'
-    androidxFragmentVersion = '1.8.2'
-    coreSplashScreenVersion = '1.0.1'
-    androidxWebkitVersion = '1.11.0'
-    junitVersion = '4.13.2'
-    androidxJunitVersion = '1.2.1'
-    androidxEspressoCoreVersion = '3.6.1'
-    cordovaAndroidVersion = '12.0.1'
-}
-
-tasks.register('clean', Delete) {
+task clean(type: Delete) {
     delete rootProject.buildDir
 }
