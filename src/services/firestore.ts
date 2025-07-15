@@ -331,7 +331,12 @@ export async function getAllUserQuizAttempts(userId: string): Promise<QuizAttemp
 }
 
 export async function getQuizLeaderboard(quizId: string): Promise<LeaderboardEntry[]> {
-    const attemptsQuery = query(collectionGroup(db, 'attempts'), where('quizId', '==', quizId), where('completed', '==', true));
+    // This query finds all documents in the "attempts" subcollection across all "users"
+    const attemptsQuery = query(
+        collectionGroup(db, 'attempts'), 
+        where('quizId', '==', quizId), 
+        where('completed', '==', true)
+    );
     const attemptsSnapshot = await getDocs(attemptsQuery);
     
     const allCompletedAttempts = attemptsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as QuizAttempt));
@@ -352,10 +357,20 @@ export async function getQuizLeaderboard(quizId: string): Promise<LeaderboardEnt
     }
     
     const userIds = Object.keys(userBestAttempts);
+    if (userIds.length === 0) {
+        return [];
+    }
+    
     const userProfiles: Record<string, UserProfile> = {};
+    
+    // Firestore 'in' query is limited to 30 items. If there are more users, we need to batch the requests.
+    const userChunks: string[][] = [];
+    for (let i = 0; i < userIds.length; i += 30) {
+        userChunks.push(userIds.slice(i, i + 30));
+    }
 
-    if (userIds.length > 0) {
-        const usersQuery = query(collection(db, 'users'), where('__name__', 'in', userIds));
+    for (const chunk of userChunks) {
+        const usersQuery = query(collection(db, 'users'), where('__name__', 'in', chunk));
         const usersSnapshot = await getDocs(usersQuery);
         usersSnapshot.forEach(doc => {
             userProfiles[doc.id] = { id: doc.id, ...doc.data() } as UserProfile;

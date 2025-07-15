@@ -91,7 +91,7 @@ export default function DashboardPage() {
                 icon: isVideo ? <PlayCircle className="h-6 w-6 text-primary" /> : <FileText className="h-6 w-6 text-primary" />,
                 title: continueStudying.title,
                 description: `Subject: ${continueStudying.subject}`,
-                link: isVideo ? continueStudying.fileUrl : `/materials/view?url=${encodeURIComponent(continueStudying.fileUrl)}`,
+                link: continueStudying.fileUrl,
                 linkText: 'View'
             });
         }
@@ -183,7 +183,7 @@ export default function DashboardPage() {
                     </div>
                   </div>
                   <Button asChild variant={"outline"} size="sm" className="ml-auto flex-shrink-0">
-                    <Link href={item.link} target={item.type === 'material' && continueStudying?.type === 'video' ? '_blank' : '_self'}>{item.linkText}</Link>
+                    <Link href={item.link} target={item.type === 'material' ? '_blank' : '_self'} rel="noopener noreferrer">{item.linkText}</Link>
                   </Button>
                 </div>
             )) : (
