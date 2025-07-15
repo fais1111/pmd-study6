@@ -1,9 +1,12 @@
 
+'use client';
+
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { BookOpen, UserCheck, Languages } from 'lucide-react';
+import { BookOpen, UserCheck, Languages, Loader2 } from 'lucide-react';
 import { Logo } from '@/components/icons';
+import { AuthProvider, useAuth } from '@/context/AuthContext';
 
 const features = [
   {
@@ -23,7 +26,14 @@ const features = [
   },
 ];
 
-export default function LandingPage() {
+
+function LandingPageContent() {
+  const { user, loading } = useAuth();
+  
+  const getStartedLink = user ? '/dashboard' : '/signup';
+  const loginLink = user ? '/dashboard' : '/login';
+  const loginLabel = user ? 'Dashboard' : 'Login';
+
   return (
     <div className="flex flex-col min-h-screen bg-background">
       <header className="container mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
@@ -32,12 +42,18 @@ export default function LandingPage() {
           <span className="text-xl font-bold font-headline text-foreground">SmartStudy Village</span>
         </Link>
         <nav className="flex items-center gap-2 md:gap-4">
-          <Button variant="ghost" asChild>
-            <Link href="/login">Login</Link>
-          </Button>
-          <Button asChild className="bg-accent hover:bg-accent/90 text-accent-foreground">
-            <Link href="/signup">Get Started</Link>
-          </Button>
+           {loading ? (
+             <Loader2 className="h-6 w-6 animate-spin" />
+           ) : (
+             <>
+                <Button variant="ghost" asChild>
+                  <Link href={loginLink}>{loginLabel}</Link>
+                </Button>
+                <Button asChild className="bg-accent hover:bg-accent/90 text-accent-foreground">
+                  <Link href={getStartedLink}>Get Started</Link>
+                </Button>
+             </>
+           )}
         </nav>
       </header>
 
@@ -51,7 +67,7 @@ export default function LandingPage() {
           </p>
           <div className="mt-8 flex flex-col sm:flex-row justify-center gap-4">
             <Button size="lg" asChild className="bg-accent hover:bg-accent/90 text-accent-foreground">
-              <Link href="/signup">Start Learning Now</Link>
+              <Link href={getStartedLink}>Start Learning Now</Link>
             </Button>
             <Button size="lg" variant="outline">
               Learn More
@@ -93,4 +109,12 @@ export default function LandingPage() {
       </footer>
     </div>
   );
+}
+
+export default function LandingPage() {
+  return (
+    <AuthProvider>
+      <LandingPageContent />
+    </AuthProvider>
+  )
 }
