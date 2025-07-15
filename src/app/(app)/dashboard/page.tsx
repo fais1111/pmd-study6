@@ -10,10 +10,12 @@ import Image from "next/image"
 import { useEffect, useState, useMemo } from "react"
 import { useAuth } from "@/context/AuthContext"
 import { getStudyMaterials, getCareerTip, Material, CareerTip, getQuizzes, Quiz, getUserQuizAttemptsForQuiz, QuizAttempt, getPosts, Post } from "@/services/firestore"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog"
+import { ScrollArea } from "@/components/ui/scroll-area"
 
-function PostCard({ post }: { post: Post }) {
+function PostCard({ post, onPostSelect }: { post: Post, onPostSelect: (post: Post) => void }) {
     return (
-        <Card className="shadow-sm flex flex-col md:flex-row overflow-hidden group w-full">
+        <Card onClick={() => onPostSelect(post)} className="shadow-sm flex flex-col md:flex-row overflow-hidden group w-full cursor-pointer hover:border-primary transition-colors">
             <div className="relative w-full md:w-1/3 h-48 md:h-auto flex-shrink-0">
                 <Image src={post.imageUrl} alt={post.title} fill sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw" className="object-cover transition-transform duration-300 group-hover:scale-105" data-ai-hint="announcement abstract" />
             </div>
@@ -25,13 +27,7 @@ function PostCard({ post }: { post: Post }) {
                     <p className="text-muted-foreground mt-1 line-clamp-3">{post.description}</p>
                 </CardContent>
                 <CardFooter>
-                    {post.link && (
-                         <Button asChild className="w-full md:w-auto bg-accent hover:bg-accent/90 text-accent-foreground">
-                            <Link href={post.link} target="_blank" rel="noopener noreferrer">
-                                Learn More <ArrowRight className="ml-2 h-4 w-4" />
-                            </Link>
-                        </Button>
-                    )}
+                    <span className="text-sm text-primary font-semibold">Read More...</span>
                 </CardFooter>
             </div>
         </Card>
@@ -48,6 +44,8 @@ export default function DashboardPage() {
         posts: Post[];
     } | null>(null);
     const [loading, setLoading] = useState(true);
+    const [selectedPost, setSelectedPost] = useState<Post | null>(null);
+
 
     useEffect(() => {
         async function fetchDashboardData() {
@@ -158,6 +156,10 @@ export default function DashboardPage() {
         };
 
     }, [dashboardData]);
+    
+    const handlePostSelect = (post: Post) => {
+        setSelectedPost(post);
+    };
 
     if (loading || authLoading) {
         return (
@@ -194,15 +196,43 @@ export default function DashboardPage() {
       </div>
 
        {posts && posts.length > 0 && (
-            <div className="space-y-4">
-                <div className="flex items-center gap-2">
-                    <Megaphone className="h-6 w-6 text-primary" />
-                    <h2 className="text-xl font-bold font-headline">News & Updates</h2>
+            <Dialog open={!!selectedPost} onOpenChange={(isOpen) => !isOpen && setSelectedPost(null)}>
+                <div className="space-y-4">
+                    <div className="flex items-center gap-2">
+                        <Megaphone className="h-6 w-6 text-primary" />
+                        <h2 className="text-xl font-bold font-headline">News & Updates</h2>
+                    </div>
+                    <div className="grid gap-6">
+                        {posts.map(post => (
+                            <DialogTrigger key={post.id} asChild>
+                                <PostCard post={post} onPostSelect={handlePostSelect} />
+                            </DialogTrigger>
+                        ))}
+                    </div>
                 </div>
-                <div className="grid gap-6">
-                    {posts.map(post => <PostCard key={post.id} post={post} />)}
-                </div>
-            </div>
+                {selectedPost && (
+                    <DialogContent className="sm:max-w-2xl">
+                         <DialogHeader>
+                            <div className="relative w-full h-48 mb-4 rounded-lg overflow-hidden">
+                                <Image src={selectedPost.imageUrl} alt={selectedPost.title} fill className="object-cover" />
+                            </div>
+                            <DialogTitle className="text-2xl font-headline">{selectedPost.title}</DialogTitle>
+                         </DialogHeader>
+                         <ScrollArea className="max-h-[50vh] pr-4">
+                            <p className="text-muted-foreground whitespace-pre-wrap">{selectedPost.description}</p>
+                         </ScrollArea>
+                        {selectedPost.link && (
+                            <DialogFooter>
+                                <Button asChild className="w-full md:w-auto bg-accent hover:bg-accent/90 text-accent-foreground">
+                                    <Link href={selectedPost.link} target="_blank" rel="noopener noreferrer">
+                                        Learn More <ArrowRight className="ml-2 h-4 w-4" />
+                                    </Link>
+                                </Button>
+                            </DialogFooter>
+                        )}
+                    </DialogContent>
+                )}
+            </Dialog>
        )}
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
