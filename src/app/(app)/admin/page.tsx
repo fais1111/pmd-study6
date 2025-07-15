@@ -132,7 +132,7 @@ function MaterialForm({ material, onFinished }: { material?: Material, onFinishe
             subject: material?.subject || "",
             type: material?.type || undefined,
             file: undefined,
-            fileUrl: material?.type === 'video' ? material.fileUrl : ''
+            fileUrl: (material?.type === 'video' ? material.fileUrl : '') || '',
         },
     });
 
