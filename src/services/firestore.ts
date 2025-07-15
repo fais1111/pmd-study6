@@ -500,15 +500,20 @@ export async function deletePost(id: string) {
 
 export async function getPosts(grade?: string, limit?: number): Promise<Post[]> {
     const collRef = collection(db, 'posts');
-    const queryConstraints = [orderBy('createdAt', 'desc')];
-
+    
+    const queryConstraints: any[] = [];
+    
     if (grade) {
-      queryConstraints.unshift(where('grade', '==', grade));
+      // Query for posts matching the specific grade OR posts marked for 'all' grades.
+      queryConstraints.push(where('grade', 'in', [grade, 'all']));
     }
+
+    queryConstraints.push(orderBy('createdAt', 'desc'));
+    
     if (limit) {
       queryConstraints.push(firestoreLimit(limit));
     }
-
+    
     const q = query(collRef, ...queryConstraints);
     const snapshot = await getDocs(q);
     const data: Post[] = snapshot.docs.map(doc => {

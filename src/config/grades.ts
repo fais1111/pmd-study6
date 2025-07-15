@@ -1,4 +1,6 @@
+
 export const grades = [
+    { value: 'all', label: 'All Grades' },
     { value: 'grade-13', label: 'Grade 13 (A/L)' },
     { value: 'grade-12', label: 'Grade 12 (A/L)' },
     { value: 'grade-11', label: 'Grade 11 (O/L)' },
