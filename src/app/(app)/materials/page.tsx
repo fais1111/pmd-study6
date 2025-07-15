@@ -20,8 +20,7 @@ const MaterialCard = memo(function MaterialCard({ material }: { material: Materi
     const typeText = isVideo ? 'Video Lesson' : (material.type === 'notes' ? 'Chapter Notes' : 'Past Paper');
     const imageHint = `${material.subject} ${material.type}`;
 
-    const href = material.fileUrl;
-    const target = "_blank";
+    const href = `/view?type=${material.type}&url=${encodeURIComponent(material.fileUrl)}&title=${encodeURIComponent(material.title)}`;
 
     return (
         <Card className="shadow-sm overflow-hidden flex flex-col group">
@@ -39,7 +38,7 @@ const MaterialCard = memo(function MaterialCard({ material }: { material: Materi
             </CardContent>
             <CardFooter className="p-4 bg-secondary/50">
                 <Button asChild className="w-full bg-accent hover:bg-accent/90 text-accent-foreground">
-                    <Link href={href} target={target} rel="noopener noreferrer">
+                    <Link href={href}>
                         {isVideo ? 'Watch Video' : 'View Material'} <ArrowRight className="ml-2 h-4 w-4" />
                     </Link>
                 </Button>

@@ -20,6 +20,7 @@ export type MaterialUpload = {
     subject: string;
     type: 'notes' | 'video' | 'past-paper';
     file?: File;
+    fileUrl?: string; // For YouTube links
 };
 
 export type Material = {
@@ -30,7 +31,7 @@ export type Material = {
     grade: string;
     description: string;
     fileUrl: string;
-    filePath: string; 
+    filePath?: string; // Only for uploaded files
     createdAt: Date;
 }
 
@@ -129,19 +130,24 @@ export async function updateUserProfile(uid: string, data: Partial<Pick<UserProf
 
 // Study Material Functions
 export async function uploadStudyMaterial(material: Omit<MaterialUpload & {id?: string}, 'id'>) {
-    if (!material.file) {
-        throw new Error("File is required for upload.");
+    const { file, type, ...materialData } = material;
+    let fileUrl = material.fileUrl || '';
+    let filePath: string | undefined = undefined;
+
+    if (type !== 'video' && file) {
+        filePath = `study_materials/${material.grade}/${material.subject}/${Date.now()}_${file.name}`;
+        const storageRef = ref(storage, filePath);
+        const snapshot = await uploadBytes(storageRef, file);
+        fileUrl = await getDownloadURL(snapshot.ref);
     }
 
-    const filePath = `study_materials/${material.grade}/${material.subject}/${Date.now()}_${material.file.name}`;
-    const storageRef = ref(storage, filePath);
-    const snapshot = await uploadBytes(storageRef, material.file);
-    const fileUrl = await getDownloadURL(snapshot.ref);
-
-    const { file, ...materialData } = material;
+    if (!fileUrl) {
+        throw new Error("A file or a valid URL is required.");
+    }
 
     await addDoc(collection(db, 'study_materials'), {
         ...materialData,
+        type,
         fileUrl: fileUrl,
         filePath: filePath, // Save file path for deletion
         createdAt: new Date(),
@@ -154,8 +160,9 @@ export async function updateStudyMaterial(id: string, material: Partial<Material
     const docRef = doc(db, 'study_materials', id);
     const updateData: any = { ...material };
     delete updateData.id;
+    delete updateData.file;
 
-    if (material.file) {
+    if (material.type !== 'video' && material.file) {
         const existingDoc = await getDoc(docRef);
         if (existingDoc.exists() && existingDoc.data().filePath) {
             const oldFileRef = ref(storage, existingDoc.data().filePath);
@@ -167,9 +174,16 @@ export async function updateStudyMaterial(id: string, material: Partial<Material
         const snapshot = await uploadBytes(storageRef, material.file);
         updateData.fileUrl = await getDownloadURL(snapshot.ref);
         updateData.filePath = filePath;
+    } else if (material.type === 'video' && material.fileUrl) {
+        // If it was a file before and now is a video, delete the old file
+        const existingDoc = await getDoc(docRef);
+        if (existingDoc.exists() && existingDoc.data().filePath) {
+            const oldFileRef = ref(storage, existingDoc.data().filePath);
+            await deleteObject(oldFileRef).catch(e => console.error("Could not delete old file, it may not exist:", e));
+        }
+        updateData.filePath = null; // Remove file path for YouTube links
     }
 
-    delete updateData.file;
     await updateDoc(docRef, updateData);
 }
 
@@ -181,7 +195,9 @@ export async function deleteStudyMaterial(id: string) {
         const data = docSnap.data() as Material;
         if (data.filePath) {
             const fileRef = ref(storage, data.filePath);
-            await deleteObject(fileRef);
+            await deleteObject(fileRef).catch(err => {
+                console.warn(`Could not delete file ${data.filePath}. It might have been already removed.`, err);
+            });
         }
         await deleteDoc(docRef);
     }
@@ -421,13 +437,5 @@ export async function updateCareerTip(tip: CareerTip) {
     const docRef = doc(db, 'configs', 'careerTip');
     await setDoc(docRef, tip);
 }
-
-
-    
-
-    
-
-
-
 
     

@@ -47,6 +47,7 @@ import {
   Moon,
   Laptop,
   Target,
+  FileVideo
 } from 'lucide-react';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
 import { ThemeProvider, useTheme } from '@/context/ThemeContext';
@@ -60,17 +61,17 @@ const navItems = [
 ];
 
 function UserNav() {
-  const { user } = useAuth();
+  const { user, userProfile } = useAuth();
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" className="relative h-10 w-auto px-2 flex items-center gap-2">
           <Avatar className="h-8 w-8">
-            <AvatarImage src={user?.photoURL || "https://placehold.co/100x100.png"} alt="User Avatar" data-ai-hint="person portrait" />
-            <AvatarFallback>{user?.email?.[0].toUpperCase()}</AvatarFallback>
+            <AvatarImage src={userProfile?.photoURL || "https://placehold.co/100x100.png"} alt="User Avatar" data-ai-hint="person portrait" />
+            <AvatarFallback>{userProfile?.displayName?.[0].toUpperCase() || 'S'}</AvatarFallback>
           </Avatar>
           <div className="text-left hidden md:block">
-            <p className="text-sm font-medium">{user?.displayName || "Student"}</p>
+            <p className="text-sm font-medium">{userProfile?.displayName || "Student"}</p>
             <p className="text-xs text-muted-foreground">{user?.email}</p>
           </div>
           <ChevronDown className="h-4 w-4 text-muted-foreground ml-1" />
@@ -79,16 +80,18 @@ function UserNav() {
       <DropdownMenuContent className="w-56" align="end" forceMount>
         <DropdownMenuLabel className="font-normal">
           <div className="flex flex-col space-y-1">
-            <p className="text-sm font-medium leading-none">{user?.displayName || "Student"}</p>
+            <p className="text-sm font-medium leading-none">{userProfile?.displayName || "Student"}</p>
             <p className="text-xs leading-none text-muted-foreground">
               {user?.email}
             </p>
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuItem>
-          <User className="mr-2 h-4 w-4" />
-          <span>Profile</span>
+        <DropdownMenuItem asChild>
+          <Link href="/profile">
+            <User className="mr-2 h-4 w-4" />
+            <span>Profile</span>
+          </Link>
         </DropdownMenuItem>
         <DropdownMenuItem>
           <Settings className="mr-2 h-4 w-4" />
@@ -182,6 +185,13 @@ function SettingsDialog() {
   );
 }
 
+const getPageTitle = (pathname: string, navItems: any[]) => {
+    if (pathname.startsWith('/view')) return 'Media Viewer';
+
+    const currentNavItem = navItems.find(item => pathname.startsWith(item.href));
+    return currentNavItem?.label || 'SmartStudy Village';
+}
+
 function AppLayoutContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { isAdmin } = useAuth();
@@ -190,6 +200,8 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
       ...navItems,
       ...(isAdmin ? [{ href: '/admin', icon: Shield, label: 'Admin' }] : [])
   ];
+  
+  const pageTitle = getPageTitle(pathname, allNavItems);
 
   return (
     <SidebarProvider>
@@ -233,7 +245,7 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
           <div className="flex items-center gap-4">
             <SidebarTrigger className="md:hidden" />
             <h1 className="text-xl font-semibold font-headline">
-              {allNavItems.find(item => pathname.startsWith(item.href))?.label || 'SmartStudy Village'}
+              {pageTitle}
             </h1>
           </div>
           <div className="flex items-center gap-4">
@@ -259,3 +271,5 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </AuthProvider>
     )
 }
+
+    

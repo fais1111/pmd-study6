@@ -68,16 +68,27 @@ const materialFormSchema = z.object({
   subject: z.string().min(2, { message: "Subject must be at least 2 characters." }),
   type: z.enum(["notes", "video", "past-paper"], { required_error: "You need to select a material type." }),
   file: z.instanceof(File).optional(),
-}).refine(data => {
-    // If it's a new material (no id), a file is required.
-    // If it's an existing material (has an id), a file is optional.
-    if (!data.id) {
-        return !!data.file;
+  fileUrl: z.string().optional(),
+}).superRefine((data, ctx) => {
+    if (data.type === 'video') {
+        if (!data.fileUrl || !z.string().url().safeParse(data.fileUrl).success) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: "A valid YouTube URL is required for videos.",
+                path: ["fileUrl"],
+            });
+        }
+    } else { // notes or past-paper
+        // On create (no id), a file is required.
+        // On edit (has id), file is optional (to keep existing one).
+        if (!data.id && !data.file) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: "A file is required for this material type.",
+                path: ["file"],
+            });
+        }
     }
-    return true;
-}, {
-    message: "File is required for new materials.",
-    path: ["file"],
 });
 
 const careerTipFormSchema = z.object({
@@ -121,8 +132,11 @@ function MaterialForm({ material, onFinished }: { material?: Material, onFinishe
             subject: material?.subject || "",
             type: material?.type || undefined,
             file: undefined,
+            fileUrl: material?.type === 'video' ? material.fileUrl : ''
         },
     });
+
+    const materialType = form.watch("type");
 
     async function onSubmit(values: MaterialFormValues) {
         setIsSubmitting(true);
@@ -137,7 +151,7 @@ function MaterialForm({ material, onFinished }: { material?: Material, onFinishe
                 toast({ title: "Success!", description: "The study material has been updated." });
             } else {
                 const { id, ...uploadValues } = values;
-                if (!uploadValues.file) {
+                if (uploadValues.type !== 'video' && !uploadValues.file) {
                      toast({ title: "Upload Failed", description: "A file is required to upload new material.", variant: "destructive" });
                      setIsSubmitting(false);
                      return;
@@ -205,14 +219,27 @@ function MaterialForm({ material, onFinished }: { material?: Material, onFinishe
                         </FormItem>
                     )} />
                 </div>
-                <FormField control={form.control} name="file" render={({ field: { onChange, value, ...rest } }) => (
-                    <FormItem>
-                        <FormLabel>File</FormLabel>
-                        <FormControl><Input type="file" onChange={(e) => onChange(e.target.files?.[0])} {...rest} /></FormControl>
-                        <FormDescription>{isEditMode ? "Upload a new file to replace the existing one. Leave empty to keep the current file." : "Upload the PDF, video file, or document."}</FormDescription>
-                        <FormMessage />
-                    </FormItem>
-                )} />
+
+                {materialType === "video" ? (
+                     <FormField control={form.control} name="fileUrl" render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>YouTube URL</FormLabel>
+                            <FormControl><Input placeholder="https://www.youtube.com/watch?v=..." {...field} /></FormControl>
+                            <FormDescription>Paste the full YouTube video URL here.</FormDescription>
+                            <FormMessage />
+                        </FormItem>
+                    )} />
+                ) : (
+                    <FormField control={form.control} name="file" render={({ field: { onChange, value, ...rest } }) => (
+                        <FormItem>
+                            <FormLabel>File</FormLabel>
+                            <FormControl><Input type="file" onChange={(e) => onChange(e.target.files?.[0])} accept=".pdf" {...rest} /></FormControl>
+                            <FormDescription>{isEditMode ? "Upload a new file to replace the existing one. Leave empty to keep the current file." : "Upload the PDF or document."}</FormDescription>
+                            <FormMessage />
+                        </FormItem>
+                    )} />
+                )}
+
                 <Button type="submit" disabled={isSubmitting}>
                     {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     {isEditMode ? 'Update Material' : 'Upload Material'}
@@ -727,3 +754,5 @@ export default function AdminPage() {
     </div>
   );
 }
+
+    
