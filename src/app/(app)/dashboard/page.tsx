@@ -4,12 +4,44 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
-import { Activity, ArrowRight, Calendar, Lightbulb, PlayCircle, Loader2, FileText, Target } from "lucide-react"
+import { Activity, ArrowRight, Calendar, Lightbulb, PlayCircle, Loader2, FileText, Target, Megaphone } from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
 import { useEffect, useState, useMemo } from "react"
 import { useAuth } from "@/context/AuthContext"
-import { getStudyMaterials, getCareerTip, Material, CareerTip, getQuizzes, Quiz, getUserQuizAttemptsForQuiz, QuizAttempt } from "@/services/firestore"
+import { getStudyMaterials, getCareerTip, Material, CareerTip, getQuizzes, Quiz, getUserQuizAttemptsForQuiz, QuizAttempt, getPosts, Post } from "@/services/firestore"
+
+function LatestPostCard({ post }: { post: Post }) {
+    return (
+        <Card className="shadow-sm lg:col-span-3 flex flex-col md:flex-row overflow-hidden group">
+            <div className="relative w-full md:w-1/3 h-48 md:h-auto flex-shrink-0">
+                <Image src={post.imageUrl} alt={post.title} fill sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw" className="object-cover transition-transform duration-300 group-hover:scale-105" data-ai-hint="announcement abstract" />
+            </div>
+            <div className="flex flex-col flex-grow">
+                <CardHeader>
+                    <div className="flex items-center gap-2">
+                        <Megaphone className="h-6 w-6 text-primary" />
+                        <CardTitle className="font-headline text-xl">Latest News & Updates</CardTitle>
+                    </div>
+                </CardHeader>
+                <CardContent className="flex-grow">
+                    <h3 className="font-bold text-lg">{post.title}</h3>
+                    <p className="text-muted-foreground mt-1 line-clamp-2">{post.description}</p>
+                </CardContent>
+                <CardFooter>
+                    {post.link && (
+                         <Button asChild className="w-full md:w-auto bg-accent hover:bg-accent/90 text-accent-foreground">
+                            <Link href={post.link} target="_blank" rel="noopener noreferrer">
+                                Learn More <ArrowRight className="ml-2 h-4 w-4" />
+                            </Link>
+                        </Button>
+                    )}
+                </CardFooter>
+            </div>
+        </Card>
+    )
+}
+
 
 export default function DashboardPage() {
     const { user, userProfile, loading: authLoading } = useAuth();
@@ -17,6 +49,7 @@ export default function DashboardPage() {
         continueStudying: Material | null;
         latestQuiz: Quiz | null;
         careerTip: CareerTip;
+        latestPost: Post | null;
     } | null>(null);
     const [loading, setLoading] = useState(true);
 
@@ -38,6 +71,7 @@ export default function DashboardPage() {
                     continueStudying: null,
                     latestQuiz: null,
                     careerTip: tip,
+                    latestPost: null,
                 });
                 setLoading(false);
                 return;
@@ -45,10 +79,12 @@ export default function DashboardPage() {
 
             const materialsPromise = getStudyMaterials(grade, true, 1);
             const quizzesPromise = getQuizzes(grade, 5); // Fetch more quizzes to find an uncompleted one
+            const postsPromise = getPosts(grade, 1);
             
-            const [materials, quizzes, careerTip] = await Promise.all([materialsPromise, quizzesPromise, careerTipPromise]);
+            const [materials, quizzes, careerTip, posts] = await Promise.all([materialsPromise, quizzesPromise, careerTipPromise, postsPromise]);
             
             const continueStudying = materials.length > 0 ? materials[0] : null;
+            const latestPost = posts.length > 0 ? posts[0] : null;
 
             let latestQuiz: Quiz | null = null;
             if (quizzes.length > 0) {
@@ -67,6 +103,7 @@ export default function DashboardPage() {
                 continueStudying,
                 latestQuiz,
                 careerTip,
+                latestPost,
             });
 
             setLoading(false);
@@ -77,10 +114,10 @@ export default function DashboardPage() {
         }
     }, [user, userProfile?.grade, authLoading]);
 
-    const { todaysPlan, continueStudying, careerTip } = useMemo(() => {
-        if (!dashboardData) return { todaysPlan: [], continueStudying: null, careerTip: undefined };
+    const { todaysPlan, continueStudying, careerTip, latestPost } = useMemo(() => {
+        if (!dashboardData) return { todaysPlan: [], continueStudying: null, careerTip: undefined, latestPost: null };
 
-        const { continueStudying, latestQuiz, careerTip } = dashboardData;
+        const { continueStudying, latestQuiz, careerTip, latestPost } = dashboardData;
         
         let plan: any[] = [];
         
@@ -122,6 +159,7 @@ export default function DashboardPage() {
             todaysPlan: plan,
             continueStudying,
             careerTip,
+            latestPost,
         };
 
     }, [dashboardData]);
@@ -161,7 +199,9 @@ export default function DashboardPage() {
       </div>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {/* Today's Plan */}
+        
+        {latestPost && <LatestPostCard post={latestPost} />}
+
         <Card className="lg:col-span-2 shadow-sm">
           <CardHeader>
             <div className="flex items-center gap-2">
@@ -243,5 +283,3 @@ export default function DashboardPage() {
     </div>
   )
 }
-
-    

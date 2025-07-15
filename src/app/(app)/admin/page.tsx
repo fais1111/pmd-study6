@@ -5,6 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, useFieldArray } from "react-hook-form";
 import * as z from "zod";
 import { useState, useEffect } from "react";
+import Image from "next/image";
 import {
     AlertDialog,
     AlertDialogAction,
@@ -54,6 +55,12 @@ import {
     Quiz,
     Question,
     updateQuiz,
+    createPost,
+    getPosts,
+    Post,
+    updatePost,
+    deletePost,
+    PostUpload,
 } from "@/services/firestore";
 import { Loader2, PlusCircle, Trash2, Edit } from "lucide-react";
 import { grades } from "@/config/grades";
@@ -91,6 +98,24 @@ const materialFormSchema = z.object({
     }
 });
 
+const postFormSchema = z.object({
+    id: z.string().optional(),
+    title: z.string().min(3, "Title must be at least 3 characters."),
+    description: z.string().min(10, "Description must be at least 10 characters."),
+    grade: z.string({ required_error: "Please select a grade." }),
+    link: z.string().url({ message: "Please enter a valid URL." }).optional().or(z.literal('')),
+    image: z.instanceof(File).optional(),
+    imageUrl: z.string().optional(),
+}).superRefine((data, ctx) => {
+    if (!data.id && !data.image) {
+        ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "An image is required to create a new post.",
+            path: ["image"],
+        });
+    }
+});
+
 const careerTipFormSchema = z.object({
     text: z.string().min(10, "The tip must be at least 10 characters long."),
     author: z.string().min(2, "Author must be at least 2 characters long."),
@@ -114,6 +139,7 @@ const quizFormSchema = z.object({
 });
 
 type MaterialFormValues = z.infer<typeof materialFormSchema>;
+type PostFormValues = z.infer<typeof postFormSchema>;
 type CareerTipFormValues = z.infer<typeof careerTipFormSchema>;
 type QuizFormValues = z.infer<typeof quizFormSchema>;
 
@@ -362,6 +388,201 @@ function ManageMaterials() {
                         </DialogDescription>
                     </DialogHeader>
                     {currentItem && <MaterialForm material={currentItem} onFinished={onEditFinished} />}
+                </DialogContent>
+            </Dialog>
+        </>
+    );
+}
+
+function PostForm({ post, onFinished }: { post?: Post, onFinished: () => void }) {
+    const { toast } = useToast();
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const isEditMode = !!post;
+
+    const form = useForm<PostFormValues>({
+        resolver: zodResolver(postFormSchema),
+        defaultValues: {
+            id: post?.id,
+            title: post?.title || "",
+            description: post?.description || "",
+            grade: post?.grade || "",
+            link: post?.link || "",
+            image: undefined,
+            imageUrl: post?.imageUrl || "",
+        },
+    });
+
+    async function onSubmit(values: PostFormValues) {
+        setIsSubmitting(true);
+        try {
+            const postData: Partial<PostUpload & { id: string }> = { ...values };
+            
+            if (isEditMode && values.id) {
+                await updatePost(values.id, postData);
+                toast({ title: "Success!", description: "The post has been updated." });
+            } else {
+                await createPost(postData as PostUpload);
+                toast({ title: "Success!", description: "The post has been created." });
+            }
+            form.reset();
+            onFinished();
+        } catch (error) {
+            console.error("Post operation failed", error);
+            toast({ title: "Operation Failed", description: "Something went wrong. Please try again.", variant: "destructive" });
+        } finally {
+            setIsSubmitting(false);
+        }
+    }
+
+    return (
+        <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                <FormField control={form.control} name="title" render={({ field }) => (
+                    <FormItem><FormLabel>Post Title</FormLabel><FormControl><Input placeholder="e.g., Free Physics Seminar" {...field} /></FormControl><FormMessage /></FormItem>
+                )} />
+                <FormField control={form.control} name="description" render={({ field }) => (
+                    <FormItem><FormLabel>Description</FormLabel><FormControl><Textarea placeholder="Details about the post..." {...field} /></FormControl><FormMessage /></FormItem>
+                )} />
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <FormField control={form.control} name="grade" render={({ field }) => (
+                        <FormItem><FormLabel>Grade</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a grade" /></SelectTrigger></FormControl><SelectContent>{grades.map(grade => <SelectItem key={grade.value} value={grade.value}>{grade.label}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>
+                    )} />
+                     <FormField control={form.control} name="link" render={({ field }) => (
+                        <FormItem><FormLabel>Link (Optional)</FormLabel><FormControl><Input placeholder="https://example.com/seminar" {...field} /></FormControl><FormMessage /></FormItem>
+                    )} />
+                </div>
+                 <FormField control={form.control} name="image" render={({ field: { onChange, value, ...rest } }) => (
+                    <FormItem>
+                        <FormLabel>Image</FormLabel>
+                        <FormControl><Input type="file" onChange={(e) => onChange(e.target.files?.[0])} accept="image/png, image/jpeg, image/gif" {...rest} /></FormControl>
+                        <FormDescription>{isEditMode ? "Upload a new image to replace the existing one. Leave empty to keep the current image." : "Upload an image for the post."}</FormDescription>
+                        <FormMessage />
+                    </FormItem>
+                )} />
+                 <div className="flex justify-end gap-2">
+                    <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
+                    <Button type="submit" disabled={isSubmitting}>
+                        {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        {isEditMode ? 'Update Post' : 'Create Post'}
+                    </Button>
+                </div>
+            </form>
+        </Form>
+    );
+}
+
+
+function ManagePosts() {
+    const { toast } = useToast();
+    const [selectedGrade, setSelectedGrade] = useState<string>('');
+    const [posts, setPosts] = useState<Post[]>([]);
+    const [loading, setLoading] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [dialogOpen, setDialogOpen] = useState(false);
+    const [currentPost, setCurrentPost] = useState<Post | undefined>(undefined);
+
+    const fetchPosts = (grade: string) => {
+        setLoading(true);
+        getPosts(grade).then(setPosts).finally(() => setLoading(false));
+    };
+
+    useEffect(() => {
+        if (selectedGrade) {
+            fetchPosts(selectedGrade);
+        } else {
+            setPosts([]);
+        }
+    }, [selectedGrade]);
+
+    const handleDelete = async (id: string) => {
+        setIsSubmitting(true);
+        try {
+            await deletePost(id);
+            setPosts(posts.filter(p => p.id !== id));
+            toast({ title: 'Success', description: 'Post deleted successfully.' });
+        } catch (error) {
+            toast({ title: 'Error', description: 'Failed to delete post.', variant: 'destructive' });
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    const handleEdit = (post: Post) => {
+        setCurrentPost(post);
+        setDialogOpen(true);
+    };
+
+    const onFormFinished = () => {
+        setDialogOpen(false);
+        setCurrentPost(undefined);
+        if (selectedGrade) {
+            fetchPosts(selectedGrade);
+        }
+    };
+
+    return (
+        <>
+            <Card>
+                <CardHeader>
+                    <CardTitle>Manage Posts</CardTitle>
+                    <CardDescription>Select a grade to view, edit, or delete existing posts.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                     <div className="max-w-xs">
+                        <Select onValueChange={setSelectedGrade} value={selectedGrade}>
+                            <SelectTrigger><SelectValue placeholder="Select a grade to manage" /></SelectTrigger>
+                            <SelectContent>{grades.map(grade => (<SelectItem key={grade.value} value={grade.value}>{grade.label}</SelectItem>))}</SelectContent>
+                        </Select>
+                    </div>
+                     {loading ? <div className="flex justify-center py-4"><Loader2 className="h-6 w-6 animate-spin" /></div>
+                        : posts.length > 0 ? (
+                            <div className="border rounded-md">
+                                {posts.map(post => (
+                                    <div key={post.id} className="flex items-center justify-between p-3 md:p-4 border-b last:border-b-0 flex-wrap">
+                                        <div className="flex items-center gap-4">
+                                            <Image src={post.imageUrl} alt={post.title} width={64} height={64} className="rounded-md object-cover" />
+                                            <div className="flex-1 min-w-[150px] mb-2 md:mb-0">
+                                                <p className="font-semibold">{post.title}</p>
+                                                <p className="text-sm text-muted-foreground line-clamp-2">{post.description}</p>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-2 flex-shrink-0">
+                                            <Button variant="ghost" size="icon" onClick={() => handleEdit(post)}><Edit className="h-4 w-4" /></Button>
+                                            <AlertDialog>
+                                                <AlertDialogTrigger asChild>
+                                                    <Button variant="ghost" size="icon" disabled={isSubmitting}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                                                </AlertDialogTrigger>
+                                                <AlertDialogContent>
+                                                    <AlertDialogHeader>
+                                                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                                        <AlertDialogDescription>This action cannot be undone and will permanently delete this post.</AlertDialogDescription>
+                                                    </AlertDialogHeader>
+                                                    <AlertDialogFooter>
+                                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                        <AlertDialogAction onClick={() => handleDelete(post.id)} disabled={isSubmitting}>
+                                                            {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Delete
+                                                        </AlertDialogAction>
+                                                    </AlertDialogFooter>
+                                                </AlertDialogContent>
+                                            </AlertDialog>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : selectedGrade && <p className="text-muted-foreground text-center py-4">No posts found for this grade.</p>
+                    }
+                </CardContent>
+            </Card>
+
+             <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+                <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+                    <DialogHeader>
+                        <DialogTitle>{currentPost ? 'Edit Post' : 'Create Post'}</DialogTitle>
+                        <DialogDescription>
+                           {currentPost ? 'Make changes to your post.' : 'Create a new post for students.'}
+                        </DialogDescription>
+                    </DialogHeader>
+                    <PostForm post={currentPost} onFinished={onFormFinished} />
                 </DialogContent>
             </Dialog>
         </>
@@ -694,6 +915,7 @@ function ManageQuizzes() {
 export default function AdminPage() {
     const [materialFormOpen, setMaterialFormOpen] = useState(false);
     const [quizFormOpen, setQuizFormOpen] = useState(false);
+    const [postFormOpen, setPostFormOpen] = useState(false);
 
   return (
     <div className="space-y-6">
@@ -702,9 +924,10 @@ export default function AdminPage() {
             <p className="text-muted-foreground">Manage your educational content.</p>
         </div>
         <Tabs defaultValue="materials" className="w-full">
-            <TabsList className="grid w-full grid-cols-3">
+            <TabsList className="grid w-full grid-cols-4">
                 <TabsTrigger value="materials">Study Materials</TabsTrigger>
                 <TabsTrigger value="quizzes">Quizzes</TabsTrigger>
+                 <TabsTrigger value="posts">Posts</TabsTrigger>
                 <TabsTrigger value="settings">General Settings</TabsTrigger>
             </TabsList>
             <TabsContent value="materials" className="space-y-4">
@@ -746,6 +969,26 @@ export default function AdminPage() {
                     </DialogContent>
                 </Dialog>
                 <ManageQuizzes />
+            </TabsContent>
+             <TabsContent value="posts" className="space-y-4">
+                <Dialog open={postFormOpen} onOpenChange={setPostFormOpen}>
+                    <DialogTrigger asChild>
+                        <Button>
+                            <PlusCircle className="mr-2 h-4 w-4" />
+                            Create New Post
+                        </Button>
+                    </DialogTrigger>
+                    <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+                        <DialogHeader>
+                            <DialogTitle>Create New Post</DialogTitle>
+                            <DialogDescription>
+                                Create a new post or announcement for students.
+                            </DialogDescription>
+                        </DialogHeader>
+                        <PostForm onFinished={() => setPostFormOpen(false)} />
+                    </DialogContent>
+                </Dialog>
+                <ManagePosts />
             </TabsContent>
             <TabsContent value="settings" className="space-y-4">
                 <CareerTipForm />

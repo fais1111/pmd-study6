@@ -35,6 +35,27 @@ export type Material = {
     createdAt: Date;
 }
 
+export type PostUpload = {
+    title: string;
+    description: string;
+    grade: string;
+    link?: string;
+    image?: File;
+    imageUrl?: string;
+};
+
+export type Post = {
+    id: string;
+    title: string;
+    description: string;
+    grade: string;
+    link?: string;
+    imageUrl: string;
+    imagePath?: string;
+    createdAt: Date;
+}
+
+
 export type CareerTip = {
     text: string;
     author: string;
@@ -243,32 +264,25 @@ export async function createQuiz(quizData: Omit<Quiz, 'id' | 'createdAt'>): Prom
 export async function updateQuiz(id: string, quizData: Partial<Omit<Quiz, 'id' | 'createdAt'>>) {
     const batch = writeBatch(db);
 
-    // 1. Delete all existing attempts for this quiz
-    // This requires the composite index to be created in Firestore console
     const attemptsQuery = query(collectionGroup(db, 'attempts'), where('quizId', '==', id));
     const attemptsSnapshot = await getDocs(attemptsQuery);
     attemptsSnapshot.forEach(doc => {
         batch.delete(doc.ref);
     });
 
-    // 2. Update the quiz document itself
     const quizDocRef = doc(db, 'quizzes', id);
     batch.update(quizDocRef, {
         ...quizData,
         updatedAt: Timestamp.now(),
     });
 
-    // 3. Commit the batch
     await batch.commit();
 }
 
 
 export async function deleteQuiz(id: string) {
-    // When a quiz is deleted, we just delete the quiz document.
-    // Associated attempts in user subcollections will be orphaned, which is acceptable.
-    // This avoids a complex and potentially slow collectionGroup query.
-    const docRef = doc(db, 'quizzes', id);
-    await deleteDoc(docRef);
+    const quizDocRef = doc(db, 'quizzes', id);
+    await deleteDoc(quizDocRef);
 }
 
 
@@ -349,7 +363,6 @@ export async function getAllUserQuizAttempts(userId: string): Promise<QuizAttemp
 }
 
 export async function getQuizLeaderboard(quizId: string): Promise<LeaderboardEntry[]> {
-    // This query finds all documents in the "attempts" subcollection across all "users"
     const attemptsQuery = query(
         collectionGroup(db, 'attempts'), 
         where('quizId', '==', quizId), 
@@ -381,7 +394,6 @@ export async function getQuizLeaderboard(quizId: string): Promise<LeaderboardEnt
     
     const userProfiles: Record<string, UserProfile> = {};
     
-    // Firestore 'in' query is limited to 30 items. If there are more users, we need to batch the requests.
     const userChunks: string[][] = [];
     for (let i = 0; i < userIds.length; i += 30) {
         userChunks.push(userIds.slice(i, i + 30));
@@ -419,6 +431,96 @@ export async function getQuizLeaderboard(quizId: string): Promise<LeaderboardEnt
         }));
 
     return ranked;
+}
+
+
+// Admin Posts
+export async function createPost(post: PostUpload): Promise<string> {
+    const { image, ...postData } = post;
+    let imageUrl = post.imageUrl || '';
+    let imagePath: string | undefined = undefined;
+
+    if (image) {
+        imagePath = `posts/${Date.now()}_${image.name}`;
+        const storageRef = ref(storage, imagePath);
+        const snapshot = await uploadBytes(storageRef, image);
+        imageUrl = await getDownloadURL(snapshot.ref);
+    }
+    
+    if (!imageUrl) {
+        throw new Error("An image is required for a post.");
+    }
+
+    const docRef = await addDoc(collection(db, 'posts'), {
+        ...postData,
+        imageUrl,
+        imagePath,
+        createdAt: new Date(),
+    });
+    return docRef.id;
+}
+
+export async function updatePost(id: string, post: Partial<PostUpload & {id?: string}>) {
+    const docRef = doc(db, 'posts', id);
+    const updateData: any = { ...post };
+    delete updateData.id;
+    delete updateData.image;
+
+    if (post.image) {
+        const existingDoc = await getDoc(docRef);
+        if (existingDoc.exists() && existingDoc.data().imagePath) {
+            const oldFileRef = ref(storage, existingDoc.data().imagePath);
+            await deleteObject(oldFileRef).catch(e => console.error("Could not delete old image, it may not exist:", e));
+        }
+        
+        const imagePath = `posts/${Date.now()}_${post.image.name}`;
+        const storageRef = ref(storage, imagePath);
+        const snapshot = await uploadBytes(storageRef, post.image);
+        updateData.imageUrl = await getDownloadURL(snapshot.ref);
+        updateData.imagePath = imagePath;
+    }
+    await updateDoc(docRef, updateData);
+}
+
+export async function deletePost(id: string) {
+    const docRef = doc(db, 'posts', id);
+    const docSnap = await getDoc(docRef);
+
+    if (docSnap.exists()) {
+        const data = docSnap.data() as Post;
+        if (data.imagePath) {
+            const fileRef = ref(storage, data.imagePath);
+            await deleteObject(fileRef).catch(err => {
+                console.warn(`Could not delete image ${data.imagePath}. It might have been already removed.`, err);
+            });
+        }
+        await deleteDoc(docRef);
+    }
+}
+
+export async function getPosts(grade?: string, limit?: number): Promise<Post[]> {
+    const collRef = collection(db, 'posts');
+    const queryConstraints = [orderBy('createdAt', 'desc')];
+
+    if (grade) {
+      queryConstraints.unshift(where('grade', '==', grade));
+    }
+    if (limit) {
+      queryConstraints.push(firestoreLimit(limit));
+    }
+
+    const q = query(collRef, ...queryConstraints);
+    const snapshot = await getDocs(q);
+    const data: Post[] = snapshot.docs.map(doc => {
+        const docData = doc.data();
+        return {
+            id: doc.id,
+            ...docData,
+            createdAt: docData.createdAt?.toDate(),
+        } as Post;
+    });
+    
+    return data;
 }
 
 
