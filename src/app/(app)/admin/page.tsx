@@ -151,7 +151,7 @@ function MaterialForm({ material, onFinished }: { material?: Material, onFinishe
                 toast({ title: "Success!", description: "The study material has been updated." });
             } else {
                 const { id, ...uploadValues } = values;
-                if (uploadValues.type !== 'video' && !uploadValues.file) {
+                 if ((uploadValues.type === 'notes' || uploadValues.type === 'past-paper') && !uploadValues.file) {
                      toast({ title: "Upload Failed", description: "A file is required to upload new material.", variant: "destructive" });
                      setIsSubmitting(false);
                      return;
@@ -754,5 +754,3 @@ export default function AdminPage() {
     </div>
   );
 }
-
-    
