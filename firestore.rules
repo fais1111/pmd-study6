@@ -1,57 +1,45 @@
-
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    
-    // Helper function to check for admin role
+
     function isAdmin() {
       return request.auth.token.email == "techworldinfo98@gmail.com";
     }
+    
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
 
-    // Rules for the 'users' collection
     match /users/{userId} {
-      // Any authenticated user can read public user profiles (for leaderboards)
-      allow get: if request.auth != null;
-      // Users can create and update their own profile
-      allow create, update: if request.auth.uid == userId;
+      allow read, update, delete: if isOwner(userId);
+      allow create: if request.auth.uid != null;
+
+      match /attempts/{attemptId} {
+        allow read, write: if isOwner(userId);
+      }
     }
 
-    // Rules for the 'study_materials' collection
     match /study_materials/{materialId} {
-      // Only admins can create, update, or delete materials
+      allow read: if request.auth.uid != null;
       allow write: if isAdmin();
-      // Any authenticated user can read materials
-      allow read: if request.auth != null;
     }
 
-    // Rules for the 'quizzes' collection
     match /quizzes/{quizId} {
-      // Only admins can create, update, or delete quizzes
+      allow read: if request.auth.uid != null;
       allow write: if isAdmin();
-      // Any authenticated user can read quizzes
-      allow read: if request.auth != null;
-    }
-
-    // Rules for 'configs' like the career tip
-    match /configs/{configId} {
-      // Only admins can update configs
-      allow write: if isAdmin();
-      // Any authenticated user can read configs
-      allow read: if request.auth != null;
-    }
-
-    // Rules for the 'attempts' sub-collection within each user
-    match /users/{userId}/attempts/{attemptId} {
-      // Users can manage their own quiz attempts
-      allow read, write: if request.auth.uid == userId;
     }
     
-    // Rules for the 'attempts' collection group, needed for quiz updates
+    match /configs/{configId} {
+      allow read: if request.auth.uid != null;
+      allow write: if isAdmin();
+    }
+
+    // Rules for the 'attempts' collection group query
     match /{path=**}/attempts/{attemptId} {
-      // Admins can list and delete attempts from any user when updating a quiz.
-      // This is required for the collectionGroup query in the updateQuiz function.
-      allow list, delete: if isAdmin();
+      // Admins can read/delete any attempt document in any user's subcollection.
+      // This is required for the batch delete operation when a quiz is updated.
+      allow read, delete: if isAdmin();
     }
   }
 }
