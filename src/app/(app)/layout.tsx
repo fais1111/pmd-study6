@@ -54,10 +54,10 @@ import { ThemeProvider, useTheme } from '@/context/ThemeContext';
 import { Label } from '@/components/ui/label';
 
 const navItems = [
-  { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-  { href: '/materials', icon: BookOpen, label: 'Study Materials' },
-  { href: '/quizzes', icon: Target, label: 'Quizzes' },
-  { href: '/profile', icon: User, label: 'Profile' },
+  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/materials', label: 'Study Materials', icon: BookOpen },
+  { href: '/quizzes', label: 'Quizzes', icon: Target },
+  { href: '/profile', label: 'Profile', icon: User },
 ];
 
 function UserNav() {
@@ -271,5 +271,3 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </AuthProvider>
     )
 }
-
-    
