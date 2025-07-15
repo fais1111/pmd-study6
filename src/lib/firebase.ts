@@ -6,7 +6,7 @@ import {
     signInWithPopup, 
     UserCredential, 
     signInWithCredential,
-    initializeAuth,
+    setPersistence,
     browserLocalPersistence,
     Auth
 } from "firebase/auth";
@@ -28,9 +28,9 @@ const firebaseConfig = {
 // Initialize Firebase
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 
-const auth = initializeAuth(app, {
-    persistence: browserLocalPersistence
-});
+const auth = getAuth(app);
+setPersistence(auth, browserLocalPersistence);
+
 
 if (Capacitor.isNativePlatform()) {
     GoogleAuth.initialize({
