@@ -1,6 +1,6 @@
 
 import { db, storage, auth } from '@/lib/firebase';
-import { collection, addDoc, getDocs, query, where, doc, setDoc, getDoc, DocumentData, orderBy, limit as firestoreLimit, updateDoc, deleteDoc, Timestamp, writeBatch, collectionGroup, getCountFromServer } from 'firebase/firestore';
+import { collection, addDoc, getDocs, query, where, doc, setDoc, getDoc, DocumentData, orderBy, limit as firestoreLimit, updateDoc, deleteDoc, Timestamp, writeBatch, collectionGroup, getCountFromServer, deleteField } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { updateProfile } from 'firebase/auth';
 
@@ -129,6 +129,14 @@ export async function grantUserFullAccess(uid: string) {
         accessExpiresAt: Timestamp.fromDate(expiryDate)
     });
 }
+
+export async function revokeUserFullAccess(uid: string) {
+    const userDocRef = doc(db, 'users', uid);
+    await updateDoc(userDocRef, {
+        accessExpiresAt: deleteField()
+    });
+}
+
 
 // User Profile Functions
 export async function createUserProfile(uid: string, data: Omit<UserProfile, 'id' | 'createdAt' | 'accessExpiresAt'>) {

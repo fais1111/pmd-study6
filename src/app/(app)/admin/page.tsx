@@ -67,6 +67,7 @@ import {
     getAllUsers,
     UserProfile,
     grantUserFullAccess,
+    revokeUserFullAccess,
 } from "@/services/firestore";
 import { Loader2, PlusCircle, Trash2, Edit, UserCheck, UserX, Crown } from "lucide-react";
 import { grades } from "@/config/grades";
@@ -606,6 +607,7 @@ function UserManagementTab() {
     const [settings, setSettings] = useState<AccessControlSettings>({ isRestricted: false });
     const [users, setUsers] = useState<UserProfile[]>([]);
     const [loading, setLoading] = useState(true);
+    const [actionLoading, setActionLoading] = useState<Record<string, boolean>>({});
     const [selectedGrade, setSelectedGrade] = useState('all');
 
     const fetchSettingsAndUsers = (grade: string) => {
@@ -636,21 +638,35 @@ function UserManagementTab() {
         }
     };
     
-    const handleGrantAccess = async (userId: string) => {
+    const handleAccessAction = async (userId: string, action: 'grant' | 'revoke') => {
+        setActionLoading(prev => ({ ...prev, [userId]: true }));
         try {
-            await grantUserFullAccess(userId);
-            toast({ title: 'Success', description: 'User has been granted full access for 1 month.' });
+            if (action === 'grant') {
+                await grantUserFullAccess(userId);
+                toast({ title: 'Success', description: 'User has been granted full access for 1 month.' });
+            } else {
+                await revokeUserFullAccess(userId);
+                toast({ title: 'Success', description: 'User access has been revoked.' });
+            }
             fetchSettingsAndUsers(selectedGrade); // Refresh data
         } catch (error) {
-             toast({ title: 'Error', description: 'Failed to grant access.', variant: 'destructive' });
+             toast({ title: 'Error', description: `Failed to ${action} access.`, variant: 'destructive' });
+        } finally {
+            setActionLoading(prev => ({ ...prev, [userId]: false }));
         }
     };
 
+    const hasActiveFullAccess = (user: UserProfile) => {
+        if (!settings.isRestricted) return true;
+        return user.accessExpiresAt && user.accessExpiresAt.toMillis() > Date.now();
+    }
+    
     const getUserStatus = (user: UserProfile) => {
-        if (!settings.isRestricted) return { text: "Full Access (Global)", color: "bg-green-500" };
-        if (user.accessExpiresAt && user.accessExpiresAt.toMillis() > Date.now()) {
-            const daysLeft = Math.ceil((user.accessExpiresAt.toMillis() - Date.now()) / (1000 * 60 * 60 * 24));
-            return { text: `Full Access (${daysLeft}d left)`, color: "bg-green-500" };
+        const hasAccess = hasActiveFullAccess(user);
+        if (hasAccess) {
+             if (!settings.isRestricted) return { text: "Full Access (Global)", color: "bg-green-500" };
+             const daysLeft = Math.ceil((user.accessExpiresAt!.toMillis() - Date.now()) / (1000 * 60 * 60 * 24));
+             return { text: `Full Access (${daysLeft}d left)`, color: "bg-green-500" };
         }
         return { text: "Limited Access", color: "bg-yellow-500" };
     }
@@ -673,7 +689,7 @@ function UserManagementTab() {
             <Card>
                  <CardHeader>
                     <CardTitle>Manage Individual Users</CardTitle>
-                    <CardDescription>Grant one month of full access to specific users.</CardDescription>
+                    <CardDescription>Grant one month of full access to specific users or revoke it.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                      <div className="max-w-xs">
@@ -684,47 +700,76 @@ function UserManagementTab() {
                     </div>
                      {loading ? <div className="flex justify-center py-4"><Loader2 className="h-6 w-6 animate-spin" /></div>
                         : users.length > 0 ? (
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>Student</TableHead>
-                                        <TableHead>Grade</TableHead>
-                                        <TableHead>Status</TableHead>
-                                        <TableHead className="text-right">Actions</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {users.map(user => {
-                                        const status = getUserStatus(user);
-                                        return (
-                                            <TableRow key={user.id}>
-                                                <TableCell>
-                                                    <div className="flex items-center gap-3">
-                                                         <Avatar className="h-9 w-9">
-                                                            <AvatarImage src={user.photoURL} alt={user.displayName} data-ai-hint="person portrait" />
-                                                            <AvatarFallback>{user.displayName?.[0]}</AvatarFallback>
-                                                        </Avatar>
-                                                        <div>
-                                                            <p className="font-medium">{user.displayName}</p>
-                                                            <p className="text-xs text-muted-foreground">{user.email}</p>
+                             <div className="overflow-x-auto">
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead>Student</TableHead>
+                                            <TableHead className="hidden md:table-cell">Grade</TableHead>
+                                            <TableHead className="hidden md:table-cell">Status</TableHead>
+                                            <TableHead className="text-right">Actions</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {users.map(user => {
+                                            const status = getUserStatus(user);
+                                            const hasAccess = hasActiveFullAccess(user);
+                                            const isLoadingAction = actionLoading[user.id];
+                                            return (
+                                                <TableRow key={user.id}>
+                                                    <TableCell>
+                                                        <div className="flex items-center gap-3">
+                                                            <Avatar className="h-9 w-9">
+                                                                <AvatarImage src={user.photoURL} alt={user.displayName} data-ai-hint="person portrait" />
+                                                                <AvatarFallback>{user.displayName?.[0]}</AvatarFallback>
+                                                            </Avatar>
+                                                            <div>
+                                                                <p className="font-medium">{user.displayName}</p>
+                                                                <p className="text-xs text-muted-foreground">{user.email}</p>
+                                                                <div className="md:hidden mt-2 flex flex-wrap gap-2 text-xs">
+                                                                    <Badge variant="outline">{grades.find(g => g.value === user.grade)?.label || user.grade}</Badge>
+                                                                    <Badge variant="secondary" className="flex items-center gap-1.5">
+                                                                        <span className={`h-2 w-2 rounded-full ${status.color}`}></span>
+                                                                        {status.text}
+                                                                    </Badge>
+                                                                </div>
+                                                            </div>
                                                         </div>
-                                                    </div>
-                                                </TableCell>
-                                                <TableCell>{grades.find(g => g.value === user.grade)?.label || user.grade}</TableCell>
-                                                <TableCell>
-                                                    <Badge variant="secondary" className="flex items-center gap-2">
-                                                        <span className={`h-2 w-2 rounded-full ${status.color}`}></span>
-                                                        {status.text}
-                                                    </Badge>
-                                                </TableCell>
-                                                <TableCell className="text-right">
-                                                    <Button size="sm" onClick={() => handleGrantAccess(user.id)}><Crown className="mr-2 h-4 w-4" /> Grant 1 Month Access</Button>
-                                                </TableCell>
-                                            </TableRow>
-                                        )
-                                    })}
-                                </TableBody>
-                            </Table>
+                                                    </TableCell>
+                                                    <TableCell className="hidden md:table-cell">{grades.find(g => g.value === user.grade)?.label || user.grade}</TableCell>
+                                                    <TableCell className="hidden md:table-cell">
+                                                        <Badge variant="secondary" className="flex items-center gap-2">
+                                                            <span className={`h-2 w-2 rounded-full ${status.color}`}></span>
+                                                            {status.text}
+                                                        </Badge>
+                                                    </TableCell>
+                                                    <TableCell className="text-right">
+                                                         {hasAccess ? (
+                                                            <AlertDialog>
+                                                                <AlertDialogTrigger asChild>
+                                                                     <Button size="sm" variant="destructive" disabled={isLoadingAction}>
+                                                                        {isLoadingAction ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UserX className="mr-2 h-4 w-4" />}
+                                                                        Revoke Access
+                                                                    </Button>
+                                                                </AlertDialogTrigger>
+                                                                <AlertDialogContent>
+                                                                    <AlertDialogHeader><AlertDialogTitle>Are you sure?</AlertDialogTitle><AlertDialogDescription>This will immediately revoke the user's full access. They will be placed on the limited access plan.</AlertDialogDescription></AlertDialogHeader>
+                                                                    <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={() => handleAccessAction(user.id, 'revoke')}>Confirm Revoke</AlertDialogAction></AlertDialogFooter>
+                                                                </AlertDialogContent>
+                                                            </AlertDialog>
+                                                        ) : (
+                                                            <Button size="sm" onClick={() => handleAccessAction(user.id, 'grant')} disabled={isLoadingAction}>
+                                                                {isLoadingAction ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Crown className="mr-2 h-4 w-4" />}
+                                                                Grant Access
+                                                            </Button>
+                                                        )}
+                                                    </TableCell>
+                                                </TableRow>
+                                            )
+                                        })}
+                                    </TableBody>
+                                </Table>
+                            </div>
                         ) : <p className="text-muted-foreground text-center py-4">No users found for this grade.</p>
                     }
                 </CardContent>
@@ -1068,17 +1113,17 @@ export default function AdminPage() {
             <p className="text-muted-foreground">Manage your educational content and users.</p>
         </div>
         <Tabs defaultValue="users" className="w-full">
-            <TabsList className="grid w-full grid-cols-5">
+            <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 md:grid-cols-5 h-auto">
                 <TabsTrigger value="users">User Management</TabsTrigger>
                 <TabsTrigger value="materials">Study Materials</TabsTrigger>
                 <TabsTrigger value="quizzes">Quizzes</TabsTrigger>
                 <TabsTrigger value="posts">Posts</TabsTrigger>
                 <TabsTrigger value="settings">General Settings</TabsTrigger>
             </TabsList>
-            <TabsContent value="users" className="space-y-4">
+            <TabsContent value="users" className="pt-4 space-y-4">
                 <UserManagementTab />
             </TabsContent>
-            <TabsContent value="materials" className="space-y-4">
+            <TabsContent value="materials" className="pt-4 space-y-4">
                  <Dialog open={materialFormOpen} onOpenChange={setMaterialFormOpen}>
                     <DialogTrigger asChild>
                         <Button>
@@ -1098,7 +1143,7 @@ export default function AdminPage() {
                 </Dialog>
                 <ManageMaterials />
             </TabsContent>
-            <TabsContent value="quizzes" className="space-y-4">
+            <TabsContent value="quizzes" className="pt-4 space-y-4">
                 <Dialog open={quizFormOpen} onOpenChange={setQuizFormOpen}>
                     <DialogTrigger asChild>
                         <Button>
@@ -1118,7 +1163,7 @@ export default function AdminPage() {
                 </Dialog>
                 <ManageQuizzes />
             </TabsContent>
-             <TabsContent value="posts" className="space-y-4">
+             <TabsContent value="posts" className="pt-4 space-y-4">
                 <Dialog open={postFormOpen} onOpenChange={setPostFormOpen}>
                     <DialogTrigger asChild>
                         <Button>
@@ -1138,7 +1183,7 @@ export default function AdminPage() {
                 </Dialog>
                 <ManagePosts />
             </TabsContent>
-            <TabsContent value="settings" className="space-y-4">
+            <TabsContent value="settings" className="pt-4 space-y-4">
                 <CareerTipForm />
             </TabsContent>
         </Tabs>
