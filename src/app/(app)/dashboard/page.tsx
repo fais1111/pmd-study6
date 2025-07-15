@@ -4,7 +4,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
-import { Activity, ArrowRight, Calendar, Lightbulb, PlayCircle, Loader2, FileText, Target, Megaphone } from "lucide-react"
+import { Activity, ArrowRight, Calendar, Lightbulb, PlayCircle, Loader2, FileText, Target, Megaphone, Lock } from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
 import { useEffect, useState, useMemo } from "react"
@@ -12,6 +12,19 @@ import { useAuth } from "@/context/AuthContext"
 import { getStudyMaterials, getCareerTip, Material, CareerTip, getQuizzes, Quiz, getUserQuizAttemptsForQuiz, QuizAttempt, getPosts, Post } from "@/services/firestore"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+
+function RestrictedAccessPrompt() {
+    return (
+        <Alert variant="destructive" className="bg-destructive/10 border-destructive/20 text-destructive">
+            <Lock className="h-4 w-4 !text-destructive" />
+            <AlertTitle>Full Access Required</AlertTitle>
+            <AlertDescription>
+                Your access is currently limited. To unlock all quizzes and study materials, please call <strong className="font-bold">0776418310</strong> to get full access.
+            </AlertDescription>
+        </Alert>
+    )
+}
 
 function PostCard({ post, onPostSelect }: { post: Post, onPostSelect: (post: Post) => void }) {
     return (
@@ -36,7 +49,7 @@ function PostCard({ post, onPostSelect }: { post: Post, onPostSelect: (post: Pos
 
 
 export default function DashboardPage() {
-    const { user, userProfile, loading: authLoading } = useAuth();
+    const { user, userProfile, loading: authLoading, hasFullAccess } = useAuth();
     const [dashboardData, setDashboardData] = useState<{
         continueStudying: Material | null;
         latestQuiz: Quiz | null;
@@ -71,8 +84,8 @@ export default function DashboardPage() {
                 return;
             }
 
-            const materialsPromise = getStudyMaterials(grade, true, 1);
-            const quizzesPromise = getQuizzes(grade, 5); // Fetch more quizzes to find an uncompleted one
+            const materialsPromise = getStudyMaterials(grade, hasFullAccess, 1);
+            const quizzesPromise = hasFullAccess ? getQuizzes(grade, 5) : Promise.resolve([]); // Fetch more quizzes to find an uncompleted one
             const postsPromise = getPosts(grade);
             
             const [materials, quizzes, careerTip, posts] = await Promise.all([materialsPromise, quizzesPromise, careerTipPromise, postsPromise]);
@@ -80,7 +93,7 @@ export default function DashboardPage() {
             const continueStudying = materials.length > 0 ? materials[0] : null;
 
             let latestQuiz: Quiz | null = null;
-            if (quizzes.length > 0) {
+            if (hasFullAccess && quizzes.length > 0) {
                  // Find the first quiz that is not completed
                 for (const quiz of quizzes) {
                     const attempts = await getUserQuizAttemptsForQuiz(user.uid, quiz.id);
@@ -105,7 +118,7 @@ export default function DashboardPage() {
         if(!authLoading) {
             fetchDashboardData();
         }
-    }, [user, userProfile?.grade, authLoading]);
+    }, [user, userProfile?.grade, authLoading, hasFullAccess]);
 
     const { todaysPlan, continueStudying, careerTip, posts } = useMemo(() => {
         if (!dashboardData) return { todaysPlan: [], continueStudying: null, careerTip: undefined, posts: [] };
@@ -143,7 +156,7 @@ export default function DashboardPage() {
                 icon: <Lightbulb className="h-6 w-6 text-primary" />,
                 title: "Explore the platform!",
                 description: "Check out the study materials and quizzes sections.",
-                link: '/quizzes',
+                link: '/materials',
                 linkText: 'Explore'
             });
         }
@@ -194,6 +207,8 @@ export default function DashboardPage() {
         <h1 className="text-2xl md:text-3xl font-bold font-headline">Welcome Back, {userProfile?.displayName?.split(' ')[0] || 'Student'}!</h1>
         <p className="text-muted-foreground">Here's your personalized learning dashboard for today.</p>
       </div>
+
+      {!hasFullAccess && <RestrictedAccessPrompt />}
 
        {posts && posts.length > 0 && (
             <Dialog open={!!selectedPost} onOpenChange={(isOpen) => !isOpen && setSelectedPost(null)}>

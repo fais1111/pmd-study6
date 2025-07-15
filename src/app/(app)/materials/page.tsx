@@ -3,7 +3,7 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { ArrowRight, FileText, PlayCircle, Loader2, Search } from "lucide-react"
+import { ArrowRight, FileText, PlayCircle, Loader2, Search, Lock } from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
 import { Badge } from "@/components/ui/badge"
@@ -13,6 +13,7 @@ import { useAuth } from "@/context/AuthContext";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 
 const MaterialCard = memo(function MaterialCard({ material }: { material: Material }) {
     const isVideo = material.type === 'video';
@@ -56,7 +57,7 @@ type GroupedMaterials = {
 }
 
 function MaterialsList() {
-    const { userProfile, loading: authLoading } = useAuth();
+    const { userProfile, loading: authLoading, hasFullAccess } = useAuth();
     const [materials, setMaterials] = useState<Material[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -79,7 +80,7 @@ function MaterialsList() {
 
             try {
                 setLoading(true);
-                const fetchedMaterials = await getStudyMaterials(grade, true);
+                const fetchedMaterials = await getStudyMaterials(grade, hasFullAccess);
                 setMaterials(fetchedMaterials);
                 setError(null);
             } catch (err) {
@@ -90,7 +91,7 @@ function MaterialsList() {
             }
         }
         fetchMaterials();
-    }, [grade, authLoading]);
+    }, [grade, authLoading, hasFullAccess]);
 
     const groupedMaterials = useMemo(() => {
         return materials.reduce((acc, material) => {
@@ -132,12 +133,21 @@ function MaterialsList() {
          return <div className="text-center text-muted-foreground py-10">Please complete your profile to see materials.</div>
     }
 
-    if (materials.length === 0) {
+    if (materials.length === 0 && hasFullAccess) {
         return <div className="text-center text-muted-foreground py-10">No study materials found for your grade.</div>
     }
 
     return (
         <div className="space-y-6">
+             {!hasFullAccess && (
+                <Alert variant="destructive" className="bg-destructive/10 border-destructive/20 text-destructive">
+                    <Lock className="h-4 w-4 !text-destructive" />
+                    <AlertTitle>Limited Access</AlertTitle>
+                    <AlertDescription>
+                        You are currently on the free plan with access to a limited selection of our oldest materials. To unlock all content, please call <strong className="font-bold">0776418310</strong>.
+                    </AlertDescription>
+                </Alert>
+            )}
             <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                 <Input 
@@ -217,4 +227,3 @@ export default function MaterialsPage() {
         </div>
     )
 }
-

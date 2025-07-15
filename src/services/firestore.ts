@@ -1,6 +1,6 @@
 
 import { db, storage, auth } from '@/lib/firebase';
-import { collection, addDoc, getDocs, query, where, doc, setDoc, getDoc, DocumentData, orderBy, limit as firestoreLimit, updateDoc, deleteDoc, Timestamp, writeBatch, collectionGroup } from 'firebase/firestore';
+import { collection, addDoc, getDocs, query, where, doc, setDoc, getDoc, DocumentData, orderBy, limit as firestoreLimit, updateDoc, deleteDoc, Timestamp, writeBatch, collectionGroup, getCountFromServer } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { updateProfile } from 'firebase/auth';
 
@@ -11,7 +11,12 @@ export type UserProfile = {
     photoURL: string;
     grade: string;
     createdAt: Date;
+    accessExpiresAt?: Timestamp;
 }
+
+export type AccessControlSettings = {
+    isRestricted: boolean;
+};
 
 export type MaterialUpload = {
     title: string;
@@ -101,8 +106,32 @@ export type LeaderboardEntry = {
     duration: number; // in seconds
 }
 
+// Access Control Functions
+export async function getAccessControlSettings(): Promise<AccessControlSettings> {
+    const docRef = doc(db, 'configs', 'accessControl');
+    const docSnap = await getDoc(docRef);
+    if (docSnap.exists()) {
+        return docSnap.data() as AccessControlSettings;
+    }
+    return { isRestricted: false }; // Default to not restricted
+}
+
+export async function setAccessControlSettings(settings: AccessControlSettings) {
+    const docRef = doc(db, 'configs', 'accessControl');
+    await setDoc(docRef, settings);
+}
+
+export async function grantUserFullAccess(uid: string) {
+    const userDocRef = doc(db, 'users', uid);
+    const expiryDate = new Date();
+    expiryDate.setDate(expiryDate.getDate() + 31);
+    await updateDoc(userDocRef, {
+        accessExpiresAt: Timestamp.fromDate(expiryDate)
+    });
+}
+
 // User Profile Functions
-export async function createUserProfile(uid: string, data: Omit<UserProfile, 'id' | 'createdAt'>) {
+export async function createUserProfile(uid: string, data: Omit<UserProfile, 'id' | 'createdAt' | 'accessExpiresAt'>) {
     try {
         await setDoc(doc(db, 'users', uid), {
             ...data,
@@ -146,6 +175,24 @@ export async function updateUserProfile(uid: string, data: Partial<Pick<UserProf
         console.error("Error updating user profile:", error);
         throw error;
     }
+}
+
+export async function getAllUsers(grade?: string): Promise<UserProfile[]> {
+    const collRef = collection(db, 'users');
+    const queryConstraints = [orderBy('createdAt', 'desc')];
+    if (grade && grade !== 'all') {
+        queryConstraints.unshift(where('grade', '==', grade));
+    }
+    const q = query(collRef, ...queryConstraints);
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+            id: doc.id,
+            ...data,
+            createdAt: data.createdAt?.toDate(),
+        } as UserProfile;
+    });
 }
 
 
@@ -227,29 +274,28 @@ export async function deleteStudyMaterial(id: string) {
     }
 }
 
-export async function getStudyMaterials(grade: string, sorted = true, limit?: number): Promise<Material[]> {
+export async function getStudyMaterials(grade: string, hasFullAccess: boolean, limit?: number): Promise<Material[]> {
     const collRef = collection(db, 'study_materials');
-    const queryConstraints = [where('grade', '==', grade)];
-
-    if (sorted) {
-      queryConstraints.push(orderBy('createdAt', 'desc'));
-    }
-    if (limit) {
-      queryConstraints.push(firestoreLimit(limit));
-    }
-
-    const q = query(collRef, ...queryConstraints);
-    const snapshot = await getDocs(q);
-    const data: Material[] = snapshot.docs.map(doc => {
-        const docData = doc.data();
-        return {
-            id: doc.id,
-            ...docData,
-            createdAt: docData.createdAt?.toDate(),
-        } as Material;
-    });
     
-    return data;
+    if (hasFullAccess) {
+        const queryConstraints = [where('grade', '==', grade), orderBy('createdAt', 'desc')];
+        if (limit) {
+          queryConstraints.push(firestoreLimit(limit));
+        }
+        const q = query(collRef, ...queryConstraints);
+        const snapshot = await getDocs(q);
+        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), createdAt: doc.data().createdAt.toDate() } as Material));
+    } else {
+        // Restricted access: 10% of oldest materials
+        const countQuery = query(collRef, where('grade', '==', grade));
+        const countSnapshot = await getCountFromServer(countQuery);
+        const totalCount = countSnapshot.data().count;
+        const limitCount = Math.max(1, Math.floor(totalCount * 0.1));
+
+        const q = query(collRef, where('grade', '==', grade), orderBy('createdAt', 'asc'), firestoreLimit(limitCount));
+        const snapshot = await getDocs(q);
+        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), createdAt: doc.data().createdAt.toDate() } as Material));
+    }
 }
 
 // Quiz Functions

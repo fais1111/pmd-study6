@@ -3,7 +3,7 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, Loader2, Search, Target } from "lucide-react";
+import { ArrowRight, Loader2, Search, Target, Lock } from "lucide-react";
 import Link from "next/link";
 import { useState, useEffect, useMemo, memo } from "react";
 import { Quiz, getQuizzes, getUserQuizAttemptsForQuiz, QuizAttempt } from "@/services/firestore";
@@ -11,6 +11,7 @@ import { useAuth } from "@/context/AuthContext";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 const QuizCard = memo(function QuizCard({ quiz, attempt }: { quiz: Quiz, attempt?: QuizAttempt }) {
     const questionsCount = quiz.questions.length;
@@ -65,7 +66,7 @@ const QuizCard = memo(function QuizCard({ quiz, attempt }: { quiz: Quiz, attempt
 });
 
 export default function QuizzesList() {
-    const { user, userProfile, loading: authLoading } = useAuth();
+    const { user, userProfile, loading: authLoading, hasFullAccess } = useAuth();
     const [quizzes, setQuizzes] = useState<Quiz[]>([]);
     const [attempts, setAttempts] = useState<Record<string, QuizAttempt>>({});
     const [loading, setLoading] = useState(true);
@@ -75,8 +76,8 @@ export default function QuizzesList() {
     const grade = userProfile?.grade;
 
     useEffect(() => {
-        if (authLoading || !user) {
-            setLoading(true);
+        if (authLoading || !user || !hasFullAccess) {
+            setLoading(false);
             return;
         }
 
@@ -115,7 +116,7 @@ export default function QuizzesList() {
             }
         }
         fetchQuizzesAndAttempts();
-    }, [grade, authLoading, user?.uid]);
+    }, [grade, authLoading, user, hasFullAccess]);
 
     const filteredQuizzes = useMemo(() => {
         if (!searchQuery) return quizzes;
@@ -139,6 +140,18 @@ export default function QuizzesList() {
 
     if (!grade) {
         return <div className="text-center text-muted-foreground py-10">Please complete your profile to see available quizzes.</div>;
+    }
+    
+    if (!hasFullAccess) {
+        return (
+            <Alert variant="destructive" className="bg-destructive/10 border-destructive/20 text-destructive">
+                <Lock className="h-4 w-4 !text-destructive" />
+                <AlertTitle>Quizzes Locked</AlertTitle>
+                <AlertDescription>
+                    Quizzes are a premium feature. To test your knowledge and prepare for exams, please call <strong className="font-bold">0776418310</strong> to get full access.
+                </AlertDescription>
+            </Alert>
+        )
     }
 
     if (quizzes.length === 0) {

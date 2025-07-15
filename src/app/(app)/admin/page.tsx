@@ -61,11 +61,23 @@ import {
     updatePost,
     deletePost,
     PostUpload,
+    setAccessControlSettings,
+    getAccessControlSettings,
+    AccessControlSettings,
+    getAllUsers,
+    UserProfile,
+    grantUserFullAccess,
 } from "@/services/firestore";
-import { Loader2, PlusCircle, Trash2, Edit } from "lucide-react";
+import { Loader2, PlusCircle, Trash2, Edit, UserCheck, UserX, Crown } from "lucide-react";
 import { grades } from "@/config/grades";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription, DialogClose } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { Timestamp } from "firebase/firestore";
 
 const materialFormSchema = z.object({
   id: z.string().optional(),
@@ -286,7 +298,8 @@ function ManageMaterials() {
 
     const fetchItems = (grade: string) => {
         setLoading(true);
-        getStudyMaterials(grade, false).then(fetchedItems => {
+        // Admin should always see all materials regardless of access settings
+        getStudyMaterials(grade, true).then(fetchedItems => {
             setItems(fetchedItems);
         }).finally(() => setLoading(false));
     };
@@ -588,6 +601,138 @@ function ManagePosts() {
     );
 }
 
+function UserManagementTab() {
+    const { toast } = useToast();
+    const [settings, setSettings] = useState<AccessControlSettings>({ isRestricted: false });
+    const [users, setUsers] = useState<UserProfile[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [selectedGrade, setSelectedGrade] = useState('all');
+
+    const fetchSettingsAndUsers = (grade: string) => {
+        setLoading(true);
+        Promise.all([getAccessControlSettings(), getAllUsers(grade)])
+            .then(([fetchedSettings, fetchedUsers]) => {
+                setSettings(fetchedSettings);
+                setUsers(fetchedUsers);
+            })
+            .catch(err => {
+                toast({ title: 'Error', description: 'Failed to load user management data.', variant: 'destructive' });
+                console.error(err);
+            })
+            .finally(() => setLoading(false));
+    };
+
+    useEffect(() => {
+        fetchSettingsAndUsers(selectedGrade);
+    }, [selectedGrade]);
+
+    const handleGlobalRestrictionToggle = async (isRestricted: boolean) => {
+        try {
+            await setAccessControlSettings({ isRestricted });
+            setSettings({ isRestricted });
+            toast({ title: 'Success', description: `Global access restriction has been ${isRestricted ? 'enabled' : 'disabled'}.` });
+        } catch (error) {
+            toast({ title: 'Error', description: 'Failed to update global settings.', variant: 'destructive' });
+        }
+    };
+    
+    const handleGrantAccess = async (userId: string) => {
+        try {
+            await grantUserFullAccess(userId);
+            toast({ title: 'Success', description: 'User has been granted full access for 1 month.' });
+            fetchSettingsAndUsers(selectedGrade); // Refresh data
+        } catch (error) {
+             toast({ title: 'Error', description: 'Failed to grant access.', variant: 'destructive' });
+        }
+    };
+
+    const getUserStatus = (user: UserProfile) => {
+        if (!settings.isRestricted) return { text: "Full Access (Global)", color: "bg-green-500" };
+        if (user.accessExpiresAt && user.accessExpiresAt.toMillis() > Date.now()) {
+            const daysLeft = Math.ceil((user.accessExpiresAt.toMillis() - Date.now()) / (1000 * 60 * 60 * 24));
+            return { text: `Full Access (${daysLeft}d left)`, color: "bg-green-500" };
+        }
+        return { text: "Limited Access", color: "bg-yellow-500" };
+    }
+
+    return (
+        <div className="space-y-6">
+            <Card>
+                <CardHeader>
+                    <CardTitle>Global Access Control</CardTitle>
+                    <CardDescription>Enable this to restrict access for all users who don't have individual full access.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <div className="flex items-center space-x-2">
+                        <Switch id="global-restriction" checked={settings.isRestricted} onCheckedChange={handleGlobalRestrictionToggle} />
+                        <Label htmlFor="global-restriction">{settings.isRestricted ? "Restricted Mode is ON" : "Restricted Mode is OFF"}</Label>
+                    </div>
+                </CardContent>
+            </Card>
+
+            <Card>
+                 <CardHeader>
+                    <CardTitle>Manage Individual Users</CardTitle>
+                    <CardDescription>Grant one month of full access to specific users.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                     <div className="max-w-xs">
+                        <Select onValueChange={setSelectedGrade} value={selectedGrade}>
+                            <SelectTrigger><SelectValue placeholder="Filter by grade" /></SelectTrigger>
+                            <SelectContent>{grades.map(grade => (<SelectItem key={grade.value} value={grade.value}>{grade.label}</SelectItem>))}</SelectContent>
+                        </Select>
+                    </div>
+                     {loading ? <div className="flex justify-center py-4"><Loader2 className="h-6 w-6 animate-spin" /></div>
+                        : users.length > 0 ? (
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Student</TableHead>
+                                        <TableHead>Grade</TableHead>
+                                        <TableHead>Status</TableHead>
+                                        <TableHead className="text-right">Actions</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {users.map(user => {
+                                        const status = getUserStatus(user);
+                                        return (
+                                            <TableRow key={user.id}>
+                                                <TableCell>
+                                                    <div className="flex items-center gap-3">
+                                                         <Avatar className="h-9 w-9">
+                                                            <AvatarImage src={user.photoURL} alt={user.displayName} data-ai-hint="person portrait" />
+                                                            <AvatarFallback>{user.displayName?.[0]}</AvatarFallback>
+                                                        </Avatar>
+                                                        <div>
+                                                            <p className="font-medium">{user.displayName}</p>
+                                                            <p className="text-xs text-muted-foreground">{user.email}</p>
+                                                        </div>
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell>{grades.find(g => g.value === user.grade)?.label || user.grade}</TableCell>
+                                                <TableCell>
+                                                    <Badge variant="secondary" className="flex items-center gap-2">
+                                                        <span className={`h-2 w-2 rounded-full ${status.color}`}></span>
+                                                        {status.text}
+                                                    </Badge>
+                                                </TableCell>
+                                                <TableCell className="text-right">
+                                                    <Button size="sm" onClick={() => handleGrantAccess(user.id)}><Crown className="mr-2 h-4 w-4" /> Grant 1 Month Access</Button>
+                                                </TableCell>
+                                            </TableRow>
+                                        )
+                                    })}
+                                </TableBody>
+                            </Table>
+                        ) : <p className="text-muted-foreground text-center py-4">No users found for this grade.</p>
+                    }
+                </CardContent>
+            </Card>
+        </div>
+    )
+}
+
 function CareerTipForm() {
     const { toast } = useToast();
     const [isLoading, setIsLoading] = useState(false);
@@ -876,7 +1021,7 @@ function ManageQuizzes() {
                                                 <AlertDialogContent>
                                                     <AlertDialogHeader>
                                                         <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                                                        <AlertDialogDescription>This action cannot be undone and will permanently delete this quiz.</AlertDialogDescription>
+                                                        <AlertDialogDescription>This action cannot be undone and will permanently delete this quiz and all associated attempts.</AlertDialogDescription>
                                                     </AlertDialogHeader>
                                                     <AlertDialogFooter>
                                                         <AlertDialogCancel>Cancel</AlertDialogCancel>
@@ -920,15 +1065,19 @@ export default function AdminPage() {
     <div className="space-y-6">
        <div>
             <h1 className="text-2xl md:text-3xl font-bold font-headline">Admin Panel</h1>
-            <p className="text-muted-foreground">Manage your educational content.</p>
+            <p className="text-muted-foreground">Manage your educational content and users.</p>
         </div>
-        <Tabs defaultValue="materials" className="w-full">
-            <TabsList className="grid w-full grid-cols-4">
+        <Tabs defaultValue="users" className="w-full">
+            <TabsList className="grid w-full grid-cols-5">
+                <TabsTrigger value="users">User Management</TabsTrigger>
                 <TabsTrigger value="materials">Study Materials</TabsTrigger>
                 <TabsTrigger value="quizzes">Quizzes</TabsTrigger>
-                 <TabsTrigger value="posts">Posts</TabsTrigger>
+                <TabsTrigger value="posts">Posts</TabsTrigger>
                 <TabsTrigger value="settings">General Settings</TabsTrigger>
             </TabsList>
+            <TabsContent value="users" className="space-y-4">
+                <UserManagementTab />
+            </TabsContent>
             <TabsContent value="materials" className="space-y-4">
                  <Dialog open={materialFormOpen} onOpenChange={setMaterialFormOpen}>
                     <DialogTrigger asChild>
@@ -996,5 +1145,3 @@ export default function AdminPage() {
     </div>
   );
 }
-
-    
