@@ -14,7 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useState } from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { grades } from '@/config/grades';
-import { createUserProfile } from '@/services/firestore';
+import { createUserProfile, getUserProfile } from '@/services/firestore';
 import { Loader2 } from 'lucide-react';
 
 function GoogleIcon(props: React.SVGProps<SVGSVGElement>) {
@@ -34,6 +34,8 @@ export default function SignupPage() {
     const [password, setPassword] = useState('');
     const [username, setUsername] = useState('');
     const [isLoading, setIsLoading] = useState(false);
+    const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+
 
     const validateForm = () => {
         if (!grade) {
@@ -64,9 +66,12 @@ export default function SignupPage() {
             router.push('/dashboard');
         } catch (error: any) {
             console.error("Error signing up", error);
+            const message = error.code === 'auth/email-already-in-use'
+                ? 'This email is already registered. Please log in.'
+                : 'An unexpected error occurred. Please try again.';
             toast({
                 title: "Sign-up Failed",
-                description: error.message || "An unexpected error occurred. Please try again.",
+                description: message,
                 variant: "destructive",
             });
         } finally {
@@ -77,10 +82,20 @@ export default function SignupPage() {
     const handleGoogleSignUp = async () => {
         if (!validateForm()) return;
         
-        setIsLoading(true);
+        setIsGoogleLoading(true);
         try {
-            const result: UserCredential = await signInWithGoogle();
+            const result: UserCredential | null = await signInWithGoogle();
+            if (!result) return;
             const user = result.user;
+
+            const profile = await getUserProfile(user.uid);
+            if (profile) {
+                // User already exists, so just log them in
+                router.push('/dashboard');
+                return;
+            }
+
+            // New user, create their profile
             await createUserProfile(user.uid, {
                 displayName: user.displayName!,
                 email: user.email!,
@@ -89,10 +104,6 @@ export default function SignupPage() {
             });
             router.push('/dashboard');
         } catch (error: any) {
-            if (error.code === 'auth/popup-closed-by-user' || error.message.includes('cancelled') || error.message.includes('user closed the prompt') || error.message.includes('SIGN_IN_CANCELLED') || error.message.includes('No user chosen') || error.message.includes('aborted')) {
-                setIsLoading(false);
-                return;
-            }
              console.error("Google sign-up error", error);
             toast({
                 title: "Sign-up Failed",
@@ -100,9 +111,11 @@ export default function SignupPage() {
                 variant: "destructive",
             })
         } finally {
-            setIsLoading(false);
+            setIsGoogleLoading(false);
         }
     };
+
+    const isAnyLoading = isLoading || isGoogleLoading;
 
     return (
         <div className="flex min-h-screen items-center justify-center bg-secondary p-4">
@@ -132,17 +145,17 @@ export default function SignupPage() {
                             </div>
                             <div className="space-y-2">
                                 <Label htmlFor="username">Username</Label>
-                                <Input id="username" placeholder="your_username" required value={username} onChange={e => setUsername(e.target.value)} />
+                                <Input id="username" placeholder="your_username" required value={username} onChange={e => setUsername(e.target.value)} disabled={isAnyLoading} />
                             </div>
                             <div className="space-y-2">
                                 <Label htmlFor="email">Email</Label>
-                                <Input id="email" type="email" placeholder="student@email.com" required value={email} onChange={e => setEmail(e.target.value)} />
+                                <Input id="email" type="email" placeholder="student@email.com" required value={email} onChange={e => setEmail(e.target.value)} disabled={isAnyLoading} />
                             </div>
                             <div className="space-y-2">
                                 <Label htmlFor="password">Password</Label>
-                                <Input id="password" type="password" required value={password} onChange={e => setPassword(e.target.value)} />
+                                <Input id="password" type="password" required value={password} onChange={e => setPassword(e.target.value)} disabled={isAnyLoading}/>
                             </div>
-                            <Button type="submit" className="w-full bg-accent hover:bg-accent/90 text-accent-foreground" disabled={isLoading}>
+                            <Button type="submit" className="w-full bg-accent hover:bg-accent/90 text-accent-foreground" disabled={isAnyLoading}>
                                 {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                                 Create Account
                             </Button>
@@ -157,8 +170,8 @@ export default function SignupPage() {
                             </span>
                           </div>
                         </div>
-                        <Button variant="outline" className="w-full" onClick={handleGoogleSignUp} disabled={isLoading}>
-                            {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        <Button variant="outline" className="w-full" onClick={handleGoogleSignUp} disabled={isAnyLoading}>
+                            {isGoogleLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                             <GoogleIcon className="mr-2 h-4 w-4" />
                             Sign up with Google
                         </Button>

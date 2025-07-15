@@ -19,27 +19,43 @@ const firebaseConfig = {
 // Initialize Firebase
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 if (Capacitor.isNativePlatform()) {
-    GoogleAuth.initialize();
+    // Initialize GoogleAuth for native platforms
+    GoogleAuth.initialize({
+      clientId: process.env.NEXT_PUBLIC_FIREBASE_WEB_CLIENT_ID,
+      scopes: ['profile', 'email'],
+      grantOfflineAccess: true,
+    });
 }
 const auth = getAuth(app);
 const db = getFirestore(app);
 const storage = getStorage(app);
 
-const signInWithGoogle = async (): Promise<UserCredential> => {
-    // Check if running on a native platform
-    if (Capacitor.isNativePlatform()) {
-        const googleUser = await GoogleAuth.signIn();
-        const idToken = googleUser.authentication.idToken;
-        const credential = GoogleAuthProvider.credential(idToken);
-        return signInWithCredential(auth, credential);
+const signInWithGoogle = async (): Promise<UserCredential | null> => {
+    try {
+        if (Capacitor.isNativePlatform()) {
+            const googleUser = await GoogleAuth.signIn();
+            const idToken = googleUser.authentication?.idToken;
+            if (!idToken) {
+                throw new Error("No ID token returned from Google Sign-In");
+            }
+            const credential = GoogleAuthProvider.credential(idToken);
+            return await signInWithCredential(auth, credential);
 
-    } else {
-        // Web platform: Use Firebase's popup
-        const provider = new GoogleAuthProvider();
-        provider.setCustomParameters({
-            prompt: 'select_account'
-        });
-        return signInWithPopup(auth, provider);
+        } else {
+            const provider = new GoogleAuthProvider();
+            provider.setCustomParameters({
+                prompt: 'select_account'
+            });
+            return await signInWithPopup(auth, provider);
+        }
+    } catch (error: any) {
+        // Handle cancellation gracefully
+        if (error.message === 'SIGN_IN_CANCELLED' || error.code === 'auth/popup-closed-by-user' || error.message.includes('user closed the prompt')) {
+            console.log("Sign-in process was cancelled by the user.");
+            return null; // Return null to indicate cancellation
+        }
+        // Re-throw other errors
+        throw error;
     }
 };
 

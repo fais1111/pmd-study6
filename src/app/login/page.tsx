@@ -3,7 +3,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { User, UserCredential } from "firebase/auth";
+import { User, UserCredential, signInWithEmailAndPassword } from "firebase/auth";
 import { auth, signInWithGoogle } from "@/lib/firebase";
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
@@ -82,15 +82,37 @@ function GradeSelectionDialog({ open, onOpenChange, onContinue, isLoading }: { o
 export default function LoginPage() {
   const router = useRouter();
   const { toast } = useToast();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [isProfileCreationLoading, setIsProfileCreationLoading] = useState(false);
   const [showGradeDialog, setShowGradeDialog] = useState(false);
   const [googleUser, setGoogleUser] = useState<User | null>(null);
 
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    try {
+        await signInWithEmailAndPassword(auth, email, password);
+        router.push('/dashboard');
+    } catch (error: any) {
+        console.error("Login error", error);
+        toast({
+            title: "Login Failed",
+            description: "Invalid email or password. Please try again.",
+            variant: "destructive",
+        });
+    } finally {
+        setIsLoading(false);
+    }
+  };
+
   const handleGoogleLogin = async () => {
     setIsGoogleLoading(true);
     try {
-        const result: UserCredential = await signInWithGoogle();
+        const result: UserCredential | null = await signInWithGoogle();
+        if (!result) return; // User cancelled the process
         const user = result.user;
         
         const profile = await getUserProfile(user.uid);
@@ -98,15 +120,12 @@ export default function LoginPage() {
         if (profile) {
             router.push('/dashboard');
         } else {
+            // New user, needs to select a grade
             setGoogleUser(user);
             setShowGradeDialog(true);
         }
 
     } catch (error: any) {
-       if (error.code === 'auth/popup-closed-by-user' || error.message.includes('cancelled') || error.message.includes('user closed the prompt') || error.message.includes('SIGN_IN_CANCELLED') || error.message.includes('No user chosen') || error.message.includes('aborted')) {
-           setIsGoogleLoading(false);
-           return;
-       }
        console.error("Google sign-in error", error);
        toast({
            title: "Login Failed",
@@ -142,7 +161,7 @@ export default function LoginPage() {
     }
   }
 
-  const isAnyLoading = isGoogleLoading || isProfileCreationLoading;
+  const isAnyLoading = isLoading || isGoogleLoading || isProfileCreationLoading;
 
   return (
     <>
@@ -162,28 +181,41 @@ export default function LoginPage() {
               <CardTitle className="font-headline text-2xl">Welcome Back</CardTitle>
               <CardDescription>Enter your credentials to access your account</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input id="email" type="email" placeholder="student@email.com" required disabled={isAnyLoading} />
-              </div>
-              <div className="space-y-2">
-                <div className="flex items-center">
-                  <Label htmlFor="password">Password</Label>
-                  <Link href="#" className="ml-auto inline-block text-sm underline">
-                    Forgot your password?
-                  </Link>
+            <CardContent>
+                <form onSubmit={handleLogin} className="space-y-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="email">Email</Label>
+                        <Input id="email" type="email" placeholder="student@email.com" required value={email} onChange={e => setEmail(e.target.value)} disabled={isAnyLoading} />
+                    </div>
+                    <div className="space-y-2">
+                        <div className="flex items-center">
+                        <Label htmlFor="password">Password</Label>
+                        <Link href="#" className="ml-auto inline-block text-sm underline">
+                            Forgot your password?
+                        </Link>
+                        </div>
+                        <Input id="password" type="password" required value={password} onChange={e => setPassword(e.target.value)} disabled={isAnyLoading} />
+                    </div>
+                    <Button type="submit" className="w-full bg-accent hover:bg-accent/90 text-accent-foreground" disabled={isAnyLoading}>
+                        {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        Login
+                    </Button>
+                </form>
+                <div className="relative my-4">
+                    <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t" />
+                    </div>
+                    <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-background px-2 text-muted-foreground">
+                        Or continue with
+                    </span>
+                    </div>
                 </div>
-                <Input id="password" type="password" required disabled={isAnyLoading} />
-              </div>
-              <Button type="submit" className="w-full bg-accent hover:bg-accent/90 text-accent-foreground" disabled={isAnyLoading}>
-                Login
-              </Button>
-              <Button variant="outline" className="w-full" onClick={handleGoogleLogin} disabled={isAnyLoading}>
-                 {isGoogleLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                <GoogleIcon className="mr-2 h-4 w-4" />
-                Login with Google
-              </Button>
+                <Button variant="outline" className="w-full" onClick={handleGoogleLogin} disabled={isAnyLoading}>
+                    {isGoogleLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    <GoogleIcon className="mr-2 h-4 w-4" />
+                    Login with Google
+                </Button>
             </CardContent>
             <CardFooter className="justify-center">
               <div className="text-sm">
