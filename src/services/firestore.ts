@@ -238,34 +238,22 @@ export async function createQuiz(quizData: Omit<Quiz, 'id' | 'createdAt'>): Prom
 }
 
 export async function updateQuiz(id: string, quizData: Partial<Omit<Quiz, 'id' | 'createdAt'>>) {
-    const batch = writeBatch(db);
-
+    // When a quiz is updated, we just update the quiz document itself.
+    // We will not delete old attempts, as they will be orphaned and not affect new attempts.
+    // This avoids a complex and potentially slow collectionGroup query.
     const quizDocRef = doc(db, 'quizzes', id);
-    batch.update(quizDocRef, {
+    await updateDoc(quizDocRef, {
         ...quizData,
         updatedAt: Timestamp.now(),
     });
-
-    const attemptsQuery = query(collectionGroup(db, 'attempts'), where('quizId', '==', id));
-    const attemptsSnapshot = await getDocs(attemptsQuery);
-    attemptsSnapshot.forEach(doc => {
-        batch.delete(doc.ref);
-    });
-
-    await batch.commit();
 }
 
 
 export async function deleteQuiz(id: string) {
+    // When a quiz is deleted, we just delete the quiz document.
+    // Associated attempts in user subcollections will be orphaned, which is acceptable.
+    // This avoids a complex and potentially slow collectionGroup query.
     const docRef = doc(db, 'quizzes', id);
-    const attemptsQuery = query(collectionGroup(db, 'attempts'), where('quizId', '==', id));
-    const attemptsSnapshot = await getDocs(attemptsQuery);
-    const batch = writeBatch(db);
-    attemptsSnapshot.forEach(doc => {
-        batch.delete(doc.ref);
-    });
-    await batch.commit();
-
     await deleteDoc(docRef);
 }
 
